@@ -24,20 +24,27 @@ spring:
     listener:
       simple:
         prefetch: 1
+        default-requeue-rejected: true
         retry:
           enabled: true
           max-attempts: 3
 
 judgemesh:
-  etcd:
-    endpoints: ${ETCD_ENDPOINTS:http://127.0.0.1:2379}
-    leader-key: /judgemesh/dispatcher/leader
-    lease-ttl-seconds: 10
-  worker:
-    timeout-seconds: 30
-    max-retry: 3
-  mq:
-    submit-queue: submit.queue
+  dispatcher:
+    mode: ${DISPATCHER_MODE:memory}
+    etcd:
+      endpoints: ${ETCD_ENDPOINTS:http://127.0.0.1:2379}
+      leader-key: /judgemesh/dispatcher/leader
+      lease-ttl-seconds: 10
+    worker:
+      timeout-seconds: 30
+      max-retry: 3
+      endpoints:
+        - http://judge-worker:8090
+      health-path: /health
+      judge-path: /judge
+    mq:
+      submit-queue: submit.queue
 
 management:
   endpoints:

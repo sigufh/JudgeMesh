@@ -40,11 +40,16 @@ mybatis-plus:
 
 judgemesh:
   mq:
-    submit-queue: submit.queue
-    submit-exchange: submit.exchange
-    submit-dlq: submit.dlq
+    queue: submit.queue
   leaderboard:
-    redis-key-prefix: leaderboard
+    global-key: "rank:global"
+    contest-key-prefix: "rank:contest:"
+    contest-pub-sub-prefix: "pubsub:contest:"
+  submission:
+    callback-url: http://submit-service:8083/api/submit/internal/result
+  websocket:
+    allowed-origins:
+      - "*"
 
 seata:
   enabled: false
