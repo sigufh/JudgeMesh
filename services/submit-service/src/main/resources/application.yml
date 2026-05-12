@@ -41,10 +41,12 @@ mybatis-plus:
 judgemesh:
   mq:
     submit-queue: submit.queue
-    submit-exchange: submit.exchange
+    submit-exchange: judgemesh.exchange
     submit-dlq: submit.dlq
   leaderboard:
     redis-key-prefix: leaderboard
+  submit:
+    callback-url: ${SUBMIT_CALLBACK_URL:http://submit-service:8083/api/submit/internal/result}
 
 seata:
   enabled: false

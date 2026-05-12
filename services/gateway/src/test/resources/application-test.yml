@@ -12,10 +12,12 @@ spring:
       import-check:
         enabled: false
     gateway:
-      discovery:
-        locator:
-          enabled: false
-      routes: []
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: false
+          routes: []
   config:
     import: []
 

@@ -35,6 +35,11 @@ seata:
   application-id: ${spring.application.name}
   tx-service-group: judgemesh-tx-group
 
+judgemesh:
+  jwt:
+    secret: ${JWT_SECRET:local-dev-secret-change-me-32-bytes}
+    ttl-seconds: ${JWT_TTL_SECONDS:86400}
+
 management:
   endpoints:
     web:
