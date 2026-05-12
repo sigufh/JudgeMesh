@@ -42,7 +42,12 @@ judgemesh:
   mq:
     submit-queue: submit.queue
     submit-exchange: judgemesh.exchange
-    submit-dlq: submit.dlq
+    retry-queue: submit.retry.queue
+    dead-queue: submit.dlq
+    submit-routing-key: judge.task
+    retry-routing-key: judge.retry
+    dead-routing-key: judge.dead
+    retry-delay-ms: ${SUBMIT_RETRY_DELAY_MS:5000}
   leaderboard:
     redis-key-prefix: leaderboard
   submit:

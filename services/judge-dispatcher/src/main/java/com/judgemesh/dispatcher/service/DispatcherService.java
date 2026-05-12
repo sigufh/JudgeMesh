@@ -65,7 +65,7 @@ public class DispatcherService {
         }
     }
 
-    private void reportSystemError(JudgeTask task, String message) {
+    public void reportSystemError(JudgeTask task, String message) {
         if (task.getCallbackUrl() == null || task.getCallbackUrl().isBlank()) {
             return;
         }

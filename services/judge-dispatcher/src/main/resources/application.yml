@@ -39,6 +39,13 @@ judgemesh:
     max-retry: 3
   mq:
     submit-queue: submit.queue
+    retry-queue: submit.retry.queue
+    dead-queue: submit.dlq
+    submit-exchange: judgemesh.exchange
+    submit-routing-key: judge.task
+    retry-routing-key: judge.retry
+    dead-routing-key: judge.dead
+    retry-delay-ms: ${SUBMIT_RETRY_DELAY_MS:5000}
   dispatcher:
     listener-enabled: ${DISPATCHER_LISTENER_ENABLED:true}
 

@@ -34,6 +34,7 @@ public class SubmissionService {
     private final ObjectProvider<SimpMessagingTemplate> messagingTemplate;
     private final Map<Long, Instant> lastSubmitAt = new ConcurrentHashMap<>();
     private final String exchange;
+    private final String submitRoutingKey;
     private final String callbackUrl;
 
     public SubmissionService(
@@ -44,6 +45,7 @@ public class SubmissionService {
             ObjectProvider<RabbitTemplate> rabbitTemplate,
             ObjectProvider<SimpMessagingTemplate> messagingTemplate,
             @Value("${judgemesh.mq.submit-exchange:judgemesh.exchange}") String exchange,
+            @Value("${judgemesh.mq.submit-routing-key:judge.task}") String submitRoutingKey,
             @Value("${judgemesh.submit.callback-url:http://submit-service:8083/api/submit/internal/result}") String callbackUrl) {
         this.store = store;
         this.contestService = contestService;
@@ -52,6 +54,7 @@ public class SubmissionService {
         this.rabbitTemplate = rabbitTemplate;
         this.messagingTemplate = messagingTemplate;
         this.exchange = exchange;
+        this.submitRoutingKey = submitRoutingKey;
         this.callbackUrl = callbackUrl;
     }
 
@@ -172,7 +175,7 @@ public class SubmissionService {
         try {
             RabbitTemplate template = rabbitTemplate.getIfAvailable();
             if (template != null) {
-                template.convertAndSend(exchange, "judge.task", task);
+                template.convertAndSend(exchange, submitRoutingKey, task);
             } else {
                 submission.setJudgeMessage("RabbitTemplate unavailable; task stored as PENDING");
             }
