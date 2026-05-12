@@ -1,6 +1,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 export const TOKEN_KEY = 'judgemesh.token';
+export const USER_KEY = 'judgemesh.user';
 
 const baseURL = import.meta.env.VITE_API_BASE ?? '';
 
@@ -18,10 +19,17 @@ client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 });
 
 client.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const payload = response.data as { code?: string; data?: unknown };
+    if (payload && typeof payload === 'object' && 'code' in payload && 'data' in payload) {
+      response.data = payload.data;
+    }
+    return response;
+  },
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
       // Avoid redirect loop if we're already on /login
       if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
         window.location.href = '/login';
