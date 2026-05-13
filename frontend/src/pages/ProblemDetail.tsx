@@ -1,21 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { fetchProblem } from '../api/problems';
-import { createSubmit } from '../api/submits';
+import { createSubmit, fetchSubmit } from '../api/submits';
 import type { Problem, Submit } from '../types';
 
 const starterCode: Record<string, string> = {
-  CPP: '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    long long a, b;\n    cin >> a >> b;\n    cout << a + b << "\\n";\n    return 0;\n}\n',
+  CPP: '#include <iostream>\nusing namespace std;\n\nint main() {\n    long long a, b;\n    cin >> a >> b;\n    cout << a + b << "\\n";\n    return 0;\n}\n',
   C: '#include <stdio.h>\n\nint main() {\n    long long a, b;\n    scanf("%lld%lld", &a, &b);\n    printf("%lld\\n", a + b);\n    return 0;\n}\n',
   JAVA: 'import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long a = sc.nextLong();\n        long b = sc.nextLong();\n        System.out.println(a + b);\n    }\n}\n',
   PYTHON: 'a, b = map(int, input().split())\nprint(a + b)\n',
 };
 
+const terminalStatuses = new Set(['AC', 'WA', 'TLE', 'MLE', 'RE', 'CE', 'SE']);
+
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
 export default function ProblemDetail() {
   const { id } = useParams<{ id: string }>();
   const [problem, setProblem] = useState<Problem | null>(null);
-  const [language, setLanguage] = useState('CPP');
-  const [code, setCode] = useState(starterCode.CPP);
+  const [language, setLanguage] = useState('PYTHON');
+  const [code, setCode] = useState(starterCode.PYTHON);
   const [submit, setSubmit] = useState<Submit | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -47,6 +51,12 @@ export default function ProblemDetail() {
     try {
       const { data } = await createSubmit({ problemId: Number(id), language, code });
       setSubmit(data);
+      for (let attempt = 0; attempt < 20 && !terminalStatuses.has(data.status); attempt += 1) {
+        await wait(750);
+        const next = await fetchSubmit(data.id);
+        setSubmit(next.data);
+        if (terminalStatuses.has(next.data.status)) break;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submit failed');
     } finally {
@@ -99,13 +109,16 @@ export default function ProblemDetail() {
             <textarea value={code} onChange={(event) => setCode(event.target.value)} spellCheck={false} />
           </label>
           <button className="button" type="button" onClick={submitCode} disabled={busy}>
-            {busy ? 'Submitting...' : 'Submit to queue'}
+            {busy ? 'Judging...' : 'Submit to queue'}
           </button>
           {submit && (
             <div className="notice">
-              Submission #{submit.id} entered the queue with status{' '}
-              <span className={`status ${submit.status}`}>{submit.status}</span>.{' '}
+              Submission #{submit.id} status{' '}
+              <span className={`status ${submit.status}`}>{submit.status}</span>
+              {submit.score != null && <> / score {submit.score}</>}
+              {submit.judgedByWorker && <> / {submit.judgedByWorker}</>}.{' '}
               <Link to="/submits">Track it</Link>.
+              {submit.judgeMessage && <div className="muted">{submit.judgeMessage}</div>}
             </div>
           )}
         </aside>

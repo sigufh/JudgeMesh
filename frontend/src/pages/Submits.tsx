@@ -9,15 +9,23 @@ export default function Submits() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchMySubmits()
-      .then(({ data }) => {
-        if (!cancelled) setSubmits(data);
-      })
-      .catch((err: unknown) => {
+    async function loadSubmits() {
+      try {
+        const { data } = await fetchMySubmits();
+        if (!cancelled) {
+          setSubmits(data);
+          setError('');
+        }
+      } catch (err: unknown) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load submissions');
-      });
+      }
+    }
+
+    void loadSubmits();
+    const timer = window.setInterval(loadSubmits, 1500);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, []);
 
