@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -53,7 +54,7 @@ func (s *Server) judge(w http.ResponseWriter, r *http.Request) {
 	slog.Info("judge accepted", "submitId", task.SubmitID, "lang", task.Language)
 
 	// Return ACCEPTED quickly; the runner completes asynchronously and posts the callback.
-	go s.runner.Run(r.Context(), task) // nolint:contextcheck
+	go s.runner.Run(context.WithoutCancel(r.Context()), task)
 
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"accepted":  true,

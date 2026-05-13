@@ -17,7 +17,7 @@ spring:
         namespace: ${NACOS_NAMESPACE:}
         file-extension: yaml
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/submits_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/submits_db?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=${MYSQL_ALLOW_PUBLIC_KEY_RETRIEVAL:true}&serverTimezone=UTC
     username: ${MYSQL_USER:judgemesh}
     password: ${MYSQL_PASSWORD:judgemesh}
     driver-class-name: com.mysql.cj.jdbc.Driver

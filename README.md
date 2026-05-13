@@ -23,11 +23,12 @@ docker compose -f infra/local/docker-compose.yml --env-file infra/local/.env up 
 分别启动后端服务:
 
 ```bash
-mvn -pl services/user-service -am spring-boot:run
-mvn -pl services/problem-service -am spring-boot:run
-mvn -pl services/submit-service -am spring-boot:run
-mvn -pl services/judge-dispatcher -am spring-boot:run
-mvn -pl services/gateway -am spring-boot:run
+mvn -pl services/api install -DskipTests
+mvn -pl services/user-service spring-boot:run
+mvn -pl services/problem-service spring-boot:run
+SUBMIT_CALLBACK_URL=http://127.0.0.1:8083/api/submit/internal/result mvn -pl services/submit-service spring-boot:run
+mvn -pl services/judge-dispatcher spring-boot:run
+mvn -pl services/gateway spring-boot:run
 ```
 
 启动 worker:

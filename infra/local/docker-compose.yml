@@ -34,7 +34,6 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
-      - --default-authentication-plugin=caching_sha2_password
     volumes:
       - mysql-data:/var/lib/mysql
       - ./mysql-init:/docker-entrypoint-initdb.d:ro
@@ -117,18 +116,25 @@ services:
 
   # ─── etcd 3.5(单节点) ──────────────────────────────────────
   etcd:
-    image: bitnami/etcd:3.5
+    image: quay.io/coreos/etcd:v3.5.18
     container_name: jm-etcd
     restart: unless-stopped
     networks: [judgemesh-net]
     ports: ["2379:2379"]
-    environment:
-      ALLOW_NONE_AUTHENTICATION: "yes"
-      ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+    command:
+      - /usr/local/bin/etcd
+      - --name=jm-etcd
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --initial-cluster=jm-etcd=http://etcd:2380
+      - --initial-cluster-state=new
     volumes:
-      - etcd-data:/bitnami/etcd
+      - etcd-data:/etcd-data
     healthcheck:
-      test: ["CMD", "etcdctl", "endpoint", "health"]
+      test: ["CMD", "etcdctl", "--endpoints=http://127.0.0.1:2379", "endpoint", "health"]
       interval: 10s
       retries: 10
 
@@ -146,12 +152,15 @@ services:
       MODE: standalone
       PREFER_HOST_MODE: hostname
       NACOS_AUTH_ENABLE: "false"  # 本地省事;线上必开
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:-anVkZ2VtZXNoLWxvY2FsLW5hY29zLWF1dGgtdG9rZW4tMzItYnl0ZXM=}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:-judgemesh}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:-judgemesh-local}
       JVM_XMS: 256m
       JVM_XMX: 512m
     volumes:
       - nacos-data:/home/nacos/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/v1/ns/operator/metrics"]
       interval: 10s
       timeout: 5s
       retries: 30
