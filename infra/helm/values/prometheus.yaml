@@ -7,8 +7,34 @@ prometheus:
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
     retention: 7d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
     resources:
       requests: { cpu: 200m, memory: 512Mi }
+  additionalServiceMonitors:
+    - name: rabbitmq
+      namespaceSelector:
+        matchNames: ["judgemesh-infra"]
+      selector:
+        matchLabels:
+          app: rabbitmq
+      endpoints:
+        - port: prom
+          interval: 15s
+    - name: etcd
+      namespaceSelector:
+        matchNames: ["judgemesh-infra"]
+      selector:
+        matchLabels:
+          app: etcd
+      endpoints:
+        - port: prom
+          interval: 15s
 
 grafana:
   enabled: true
@@ -19,6 +45,11 @@ grafana:
     dashboards:
       enabled: true
       label: grafana_dashboard
+    datasources:
+      enabled: true
+  persistence:
+    enabled: true
+    size: 10Gi
 
 alertmanager:
   enabled: true

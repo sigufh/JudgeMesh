@@ -1,0 +1,182 @@
+name: cd-k8s
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target overlay
+        required: true
+        default: prod
+        type: choice
+        options:
+          - dev
+          - prod
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cd-k8s.yml'
+      - 'pom.xml'
+      - 'services/**'
+      - 'frontend/**'
+      - 'infra/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository_owner }}/judgemesh
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: services/judge-worker/go.sum
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Verify Java modules
+        run: mvn -B -T 4C clean verify
+
+      - name: Verify judge-worker
+        working-directory: services/judge-worker
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: Verify frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image_name: gateway
+            image_repo: judgemesh-gateway
+            context: .
+            dockerfile: ""
+            build: mvn -pl services/gateway -am -DskipTests jib:build -Djib.to.image=${REGISTRY}/${IMAGE_NAMESPACE}/judgemesh-gateway:${IMAGE_TAG}
+          - image_name: user-service
+            image_repo: judgemesh-user-service
+            context: .
+            dockerfile: ""
+            build: mvn -pl services/user-service -am -DskipTests jib:build -Djib.to.image=${REGISTRY}/${IMAGE_NAMESPACE}/judgemesh-user-service:${IMAGE_TAG}
+          - image_name: problem-service
+            image_repo: judgemesh-problem-service
+            context: .
+            dockerfile: ""
+            build: mvn -pl services/problem-service -am -DskipTests jib:build -Djib.to.image=${REGISTRY}/${IMAGE_NAMESPACE}/judgemesh-problem-service:${IMAGE_TAG}
+          - image_name: submit-service
+            image_repo: judgemesh-submit-service
+            context: .
+            dockerfile: ""
+            build: mvn -pl services/submit-service -am -DskipTests jib:build -Djib.to.image=${REGISTRY}/${IMAGE_NAMESPACE}/judgemesh-submit-service:${IMAGE_TAG}
+          - image_name: judge-dispatcher
+            image_repo: judgemesh-judge-dispatcher
+            context: .
+            dockerfile: ""
+            build: mvn -pl services/judge-dispatcher -am -DskipTests jib:build -Djib.to.image=${REGISTRY}/${IMAGE_NAMESPACE}/judgemesh-judge-dispatcher:${IMAGE_TAG}
+          - image_name: judge-worker
+            image_repo: judge-worker
+            context: services/judge-worker
+            dockerfile: services/judge-worker/Dockerfile
+          - image_name: frontend
+            image_repo: frontend
+            context: frontend
+            dockerfile: frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        if: contains(matrix.image_repo, 'judgemesh-')
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Set up Docker Buildx
+        if: matrix.dockerfile != ''
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Java image
+        if: matrix.dockerfile == ''
+        run: ${{ matrix.build }}
+
+      - name: Build and push Docker image
+        if: matrix.dockerfile != ''
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image_repo }}:${{ env.IMAGE_TAG }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'prod' }}
+    env:
+      DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'prod' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Set up kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Write kubeconfig
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBECONFIG_B64" | base64 --decode > "$HOME/.kube/config"
+
+      - name: Set deployment images
+        working-directory: infra/k8s/overlays/${{ env.DEPLOY_ENV }}
+        run: |
+          kustomize edit set image \
+            docker.io/judgemesh/judgemesh-gateway:latest=${REGISTRY}/${IMAGE_NAMESPACE}/judgemesh-gateway:${IMAGE_TAG} \
+            docker.io/judgemesh/judgemesh-user-service:latest=${REGISTRY}/${IMAGE_NAMESPACE}/judgemesh-user-service:${IMAGE_TAG} \
+            docker.io/judgemesh/judgemesh-problem-service:latest=${REGISTRY}/${IMAGE_NAMESPACE}/judgemesh-problem-service:${IMAGE_TAG} \
+            docker.io/judgemesh/judgemesh-submit-service:latest=${REGISTRY}/${IMAGE_NAMESPACE}/judgemesh-submit-service:${IMAGE_TAG} \
+            docker.io/judgemesh/judgemesh-judge-dispatcher:latest=${REGISTRY}/${IMAGE_NAMESPACE}/judgemesh-judge-dispatcher:${IMAGE_TAG} \
+            docker.io/judgemesh/judge-worker:latest=${REGISTRY}/${IMAGE_NAMESPACE}/judge-worker:${IMAGE_TAG} \
+            docker.io/judgemesh/frontend:latest=${REGISTRY}/${IMAGE_NAMESPACE}/frontend:${IMAGE_TAG}
+
+      - name: Deploy overlay
+        run: kubectl apply -k infra/k8s/overlays/${{ env.DEPLOY_ENV }}

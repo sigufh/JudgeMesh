@@ -1,8 +1,18 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: judgemesh
 
 resources:
+  - ../../base/namespaces
+  - ../../base/app-secrets
+  - ../../base/infra-secrets
+  - ../../base/nacos
+  - ../../base/redis
+  - ../../base/rabbitmq
+  - ../../base/etcd
+  - ../../base/cert-manager
+  - ../../base/ingress-nginx
+  - ../../base/keda
+  - ../../base/grafana-dashboards
   - ../../base/gateway
   - ../../base/user-service
   - ../../base/problem-service
