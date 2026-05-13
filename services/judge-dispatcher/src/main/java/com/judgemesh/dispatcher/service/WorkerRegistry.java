@@ -9,10 +9,10 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class WorkerRegistry {
@@ -21,6 +21,7 @@ public class WorkerRegistry {
     private final Map<URI, Instant> unavailableUntil = new ConcurrentHashMap<>();
     private final RestTemplate restTemplate;
     private final Duration blacklistDuration;
+    private final AtomicInteger cursor = new AtomicInteger();
 
     public WorkerRegistry(
             @Value("${judgemesh.worker.urls:http://127.0.0.1:8090}") String workerUrls,
@@ -39,10 +40,21 @@ public class WorkerRegistry {
         if (workers.isEmpty()) {
             throw new IllegalStateException("no worker urls configured");
         }
-        URI worker = workers.stream()
+        List<URI> healthyWorkers = workers.stream()
                 .filter(this::healthy)
-                .min(Comparator.comparing(uri -> inflight.getOrDefault(uri, 0)))
-                .orElseThrow(() -> new IllegalStateException("no healthy worker available"));
+                .toList();
+        if (healthyWorkers.isEmpty()) {
+            throw new IllegalStateException("no healthy worker available");
+        }
+
+        int minInflight = healthyWorkers.stream()
+                .mapToInt(uri -> inflight.getOrDefault(uri, 0))
+                .min()
+                .orElse(0);
+        List<URI> candidates = healthyWorkers.stream()
+                .filter(uri -> inflight.getOrDefault(uri, 0) == minInflight)
+                .toList();
+        URI worker = candidates.get(Math.floorMod(cursor.getAndIncrement(), candidates.size()));
         inflight.merge(worker, 1, Integer::sum);
         return worker;
     }

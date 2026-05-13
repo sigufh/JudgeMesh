@@ -13,9 +13,13 @@ import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -36,6 +40,8 @@ public class SubmissionService {
     private final String exchange;
     private final String submitRoutingKey;
     private final String callbackUrl;
+    private final String problemBaseUrl;
+    private final RestTemplate directProblemClient = new RestTemplate();
 
     public SubmissionService(
             SubmissionStore store,
@@ -46,7 +52,8 @@ public class SubmissionService {
             ObjectProvider<SimpMessagingTemplate> messagingTemplate,
             @Value("${judgemesh.mq.submit-exchange:judgemesh.exchange}") String exchange,
             @Value("${judgemesh.mq.submit-routing-key:judge.task}") String submitRoutingKey,
-            @Value("${judgemesh.submit.callback-url:http://submit-service:8083/api/submit/internal/result}") String callbackUrl) {
+            @Value("${judgemesh.submit.callback-url:http://submit-service:8083/api/submit/internal/result}") String callbackUrl,
+            @Value("${judgemesh.problem.base-url:http://127.0.0.1:8082}") String problemBaseUrl) {
         this.store = store;
         this.contestService = contestService;
         this.rankingService = rankingService;
@@ -56,6 +63,7 @@ public class SubmissionService {
         this.exchange = exchange;
         this.submitRoutingKey = submitRoutingKey;
         this.callbackUrl = callbackUrl;
+        this.problemBaseUrl = problemBaseUrl;
     }
 
     public SubmitDTO submit(SubmitCommand command) {
@@ -202,18 +210,39 @@ public class SubmissionService {
     }
 
     private List<JudgeTask.TestCaseRef> loadManifest(Long problemId) {
-        try {
-            ProblemClient client = problemClient.getIfAvailable();
-            if (client != null) {
-                List<JudgeTask.TestCaseRef> refs = client.getManifest(problemId);
-                if (refs != null && !refs.isEmpty()) {
+        RuntimeException lastError = null;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                ProblemClient client = problemClient.getIfAvailable();
+                if (client != null) {
+                    List<JudgeTask.TestCaseRef> refs = client.getManifest(problemId);
+                    if (refs != null && !refs.isEmpty()) {
+                        return refs;
+                    }
+                }
+                List<JudgeTask.TestCaseRef> refs = loadManifestDirect(problemId);
+                if (!refs.isEmpty()) {
                     return refs;
                 }
+            } catch (RuntimeException ex) {
+                lastError = ex;
             }
-        } catch (RuntimeException ignored) {
-            // Fall through to worker-side synthetic failure if no testcase exists.
         }
-        return List.of();
+        String message = lastError == null ? "empty testcase manifest" : lastError.getMessage();
+        throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                "testcase manifest unavailable for problem " + problemId + ": " + message);
+    }
+
+    private List<JudgeTask.TestCaseRef> loadManifestDirect(Long problemId) {
+        ResponseEntity<List<JudgeTask.TestCaseRef>> response = directProblemClient.exchange(
+                problemBaseUrl + "/api/problem/internal/{id}/testcase/manifest",
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<>() {
+                },
+                problemId);
+        List<JudgeTask.TestCaseRef> refs = response.getBody();
+        return refs == null ? List.of() : refs;
     }
 
     private void notifySubmission(Submission submission) {

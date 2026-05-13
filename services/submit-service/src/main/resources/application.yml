@@ -52,6 +52,8 @@ judgemesh:
     redis-key-prefix: leaderboard
   submit:
     callback-url: ${SUBMIT_CALLBACK_URL:http://submit-service:8083/api/submit/internal/result}
+  problem:
+    base-url: ${PROBLEM_SERVICE_URL:http://127.0.0.1:8082}
 
 seata:
   enabled: false
