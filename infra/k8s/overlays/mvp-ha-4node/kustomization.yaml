@@ -1,0 +1,301 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base/namespaces
+  - ../../base/app-secrets
+  - ../../base/infra-secrets
+  - ../../base/nacos
+  - ../../base/mysql
+  - ../../base/minio
+  - ../../base/redis
+  - ../../base/rabbitmq
+  - ../../base/etcd
+  - ../../base/ingress-nginx
+  - ../../base/gateway
+  - ../../base/user-service
+  - ../../base/problem-service
+  - ../../base/submit-service
+  - ../../base/judge-dispatcher
+  - ../../base/judge-worker
+  - ../../base/frontend
+  - ../../base/ingress
+
+images:
+  - name: docker.io/judgemesh/judgemesh-gateway
+    newName: docker.io/judgemesh/judgemesh-gateway
+    newTag: latest
+  - name: docker.io/judgemesh/judgemesh-user-service
+    newName: docker.io/judgemesh/judgemesh-user-service
+    newTag: latest
+  - name: docker.io/judgemesh/judgemesh-problem-service
+    newName: docker.io/judgemesh/judgemesh-problem-service
+    newTag: latest
+  - name: docker.io/judgemesh/judgemesh-submit-service
+    newName: docker.io/judgemesh/judgemesh-submit-service
+    newTag: latest
+  - name: docker.io/judgemesh/judgemesh-judge-dispatcher
+    newName: docker.io/judgemesh/judgemesh-judge-dispatcher
+    newTag: latest
+  - name: docker.io/judgemesh/judge-worker
+    newName: docker.io/judgemesh/judge-worker
+    newTag: latest
+  - name: docker.io/judgemesh/frontend
+    newName: docker.io/judgemesh/frontend
+    newTag: latest
+
+patches:
+  - target: { kind: Ingress, name: oj-ingress, namespace: judgemesh }
+    patch: |
+      - op: remove
+        path: /spec/rules/0/host
+  - target: { kind: Deployment, name: frontend }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [app]
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app: frontend
+                  topologyKey: kubernetes.io/hostname
+  - target: { kind: Deployment, name: gateway }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [app]
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app: gateway
+                  topologyKey: kubernetes.io/hostname
+  - target: { kind: Deployment, name: user-service }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [app]
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app: user-service
+                  topologyKey: kubernetes.io/hostname
+  - target: { kind: Deployment, name: problem-service }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [app]
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app: problem-service
+                  topologyKey: kubernetes.io/hostname
+  - target: { kind: Deployment, name: submit-service }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [app]
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app: submit-service
+                  topologyKey: kubernetes.io/hostname
+  - target: { kind: Deployment, name: judge-dispatcher }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [app]
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app: judge-dispatcher
+                  topologyKey: kubernetes.io/hostname
+  - target: { kind: Deployment, name: judge-worker }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: replace
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [judge]
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app: judge-worker
+                  topologyKey: kubernetes.io/hostname
+      - op: remove
+        path: /spec/template/spec/tolerations
+  - target: { kind: StatefulSet, name: etcd }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app: etcd
+                  topologyKey: kubernetes.io/hostname
+  - target: { kind: StatefulSet, name: mysql }
+    patch: |
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [app]
+  - target: { kind: StatefulSet, name: minio }
+    patch: |
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [app]
+  - target: { kind: StatefulSet, name: nacos }
+    patch: |
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [app]
+  - target: { kind: StatefulSet, name: redis }
+    patch: |
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [app]
+  - target: { kind: StatefulSet, name: rabbitmq }
+    patch: |
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [app]

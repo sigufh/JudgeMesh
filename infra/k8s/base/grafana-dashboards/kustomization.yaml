@@ -5,25 +5,25 @@ namespace: judgemesh-observe
 configMapGenerator:
   - name: grafana-dashboard-oj-live
     files:
-      - dashboard.json=../../../grafana/dashboards/oj-live.json
+      - dashboard.json=oj-live.json
     options:
       labels:
         grafana_dashboard: "1"
   - name: grafana-dashboard-judge-pipeline
     files:
-      - dashboard.json=../../../grafana/dashboards/judge-pipeline.json
+      - dashboard.json=judge-pipeline.json
     options:
       labels:
         grafana_dashboard: "1"
   - name: grafana-dashboard-governance
     files:
-      - dashboard.json=../../../grafana/dashboards/governance.json
+      - dashboard.json=governance.json
     options:
       labels:
         grafana_dashboard: "1"
   - name: grafana-dashboard-infra
     files:
-      - dashboard.json=../../../grafana/dashboards/infra.json
+      - dashboard.json=infra.json
     options:
       labels:
         grafana_dashboard: "1"

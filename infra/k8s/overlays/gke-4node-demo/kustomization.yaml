@@ -46,7 +46,6 @@ images:
     newName: docker.io/judgemesh/frontend
     newTag: latest
 
-# dev 环境差异:1 副本、资源减半、本地镜像
 patches:
   - target: { kind: Ingress, name: oj-ingress, namespace: judgemesh }
     patch: |
@@ -57,38 +56,90 @@ patches:
       - op: replace
         path: /spec/replicas
         value: 1
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
   - target: { kind: Deployment, name: user-service }
     patch: |
       - op: replace
         path: /spec/replicas
         value: 1
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
   - target: { kind: Deployment, name: problem-service }
     patch: |
       - op: replace
         path: /spec/replicas
         value: 1
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
   - target: { kind: Deployment, name: submit-service }
     patch: |
       - op: replace
         path: /spec/replicas
         value: 1
-  - target: { kind: Deployment, name: judge-dispatcher }
-    patch: |
-      - op: replace
-        path: /spec/replicas
-        value: 1
-  - target: { kind: Deployment, name: judge-worker }
-    patch: |
-      - op: replace
-        path: /spec/replicas
-        value: 1
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
   - target: { kind: Deployment, name: frontend }
     patch: |
       - op: replace
         path: /spec/replicas
         value: 1
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
+  - target: { kind: Deployment, name: judge-dispatcher }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
+  - target: { kind: Deployment, name: judge-worker }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: role
+                      operator: In
+                      values: [judge]
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app: judge-worker
+                topologyKey: kubernetes.io/hostname
   - target: { kind: StatefulSet, name: etcd }
     patch: |
       - op: replace
         path: /spec/replicas
         value: 1
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
+  - target: { kind: StatefulSet, name: nacos }
+    patch: |
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
+  - target: { kind: StatefulSet, name: redis }
+    patch: |
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
+  - target: { kind: StatefulSet, name: rabbitmq }
+    patch: |
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
