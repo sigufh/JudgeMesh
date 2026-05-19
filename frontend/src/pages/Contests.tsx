@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchContests, fetchGlobalRank, registerContest } from '../api/contests';
+import { useLiveTopic } from '../hooks/useLiveTopic';
 import type { Contest, RankEntry } from '../types';
 
 export default function Contests() {
@@ -20,6 +21,12 @@ export default function Contests() {
       cancelled = true;
     };
   }, []);
+
+  const globalLiveState = useLiveTopic<RankEntry[]>('/topic/rank/global', (entries) => {
+    startTransition(() => {
+      setRank(entries);
+    });
+  });
 
   async function join(contest: Contest) {
     setError('');
@@ -89,6 +96,9 @@ export default function Contests() {
         <div className="panel">
           <div className="panel-header">
             <h2>Global board</h2>
+            <span className={`status ${globalLiveState === 'open' ? 'AC' : 'PENDING'}`}>
+              {globalLiveState === 'open' ? 'Live' : 'Reconnect'}
+            </span>
           </div>
           <table className="table">
             <thead>

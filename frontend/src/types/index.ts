@@ -86,6 +86,39 @@ export interface RankEntry {
   score: number;
 }
 
+export type WorkerState = 'UP' | 'BLACKLISTED' | 'DOWN' | string;
+
+export interface DispatcherWorker {
+  url: string;
+  inflight: number;
+  available: boolean;
+  state: WorkerState;
+  blacklistedUntil?: string | null;
+  lastError?: string | null;
+}
+
+export interface DispatcherWorkerRegistryStatus {
+  configured: string[];
+  availableCount: number;
+  totalCount: number;
+  workers: DispatcherWorker[];
+}
+
+export interface DispatcherLeaderStatus {
+  leader?: string | null;
+  self: string;
+  isLeader: boolean;
+  mode: string;
+  leaseId: number;
+  leaderKey: string;
+  lastChangedAt: string;
+}
+
+export interface DispatcherStatus {
+  leader: DispatcherLeaderStatus;
+  workers: DispatcherWorkerRegistryStatus;
+}
+
 export interface ApiResponse<T> {
   code: string;
   message: string;

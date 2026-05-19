@@ -25,13 +25,23 @@ public class DispatcherAdminController {
         return dispatcherService.status();
     }
 
-    @PostMapping({"/admin/dispatcher/chaos/kill-self", "/api/admin/dispatcher/chaos/kill-self"})
+    @PostMapping({
+            "/admin/dispatcher/chaos/kill-self",
+            "/api/admin/dispatcher/chaos/kill-self",
+            "/admin/dispatcher/leader/relinquish",
+            "/api/admin/dispatcher/leader/relinquish"
+    })
     public Map<String, Object> killSelf() {
         leaderElectionService.relinquishForChaos();
         return leaderElectionService.status();
     }
 
-    @PostMapping({"/admin/dispatcher/chaos/become-leader", "/api/admin/dispatcher/chaos/become-leader"})
+    @PostMapping({
+            "/admin/dispatcher/chaos/become-leader",
+            "/api/admin/dispatcher/chaos/become-leader",
+            "/admin/dispatcher/leader/reacquire",
+            "/api/admin/dispatcher/leader/reacquire"
+    })
     public Map<String, Object> becomeLeader() {
         leaderElectionService.becomeLeader();
         return leaderElectionService.status();

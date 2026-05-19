@@ -8,7 +8,9 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class DispatcherService {
@@ -29,27 +31,35 @@ public class DispatcherService {
         if (!leaderElectionService.isLeader()) {
             return new DispatchResult(false, null, "not leader");
         }
-        URI worker;
-        try {
-            worker = workerRegistry.acquire();
-        } catch (IllegalStateException ex) {
-            return new DispatchResult(false, null, ex.getMessage());
-        }
-        try {
-            markJudging(task, worker);
-            URI endpoint = worker.resolve("/judge");
-            ResponseEntity<String> response = restTemplate.postForEntity(endpoint, task, String.class);
-            if (!response.getStatusCode().is2xxSuccessful()) {
-                workerRegistry.markFailed(worker);
-                return new DispatchResult(false, worker.toString(), "worker rejected task");
+
+        Set<URI> attempted = new LinkedHashSet<>();
+        DispatchResult lastFailure = null;
+        while (attempted.size() < workerRegistry.configuredCount()) {
+            URI worker;
+            try {
+                worker = workerRegistry.acquire(attempted);
+            } catch (IllegalStateException ex) {
+                return lastFailure != null ? lastFailure : new DispatchResult(false, null, ex.getMessage());
             }
-            return new DispatchResult(true, worker.toString(), "accepted");
-        } catch (RestClientException ex) {
-            workerRegistry.markFailed(worker);
-            return new DispatchResult(false, worker.toString(), ex.getMessage());
-        } finally {
-            workerRegistry.release(worker);
+            attempted.add(worker);
+            try {
+                markJudging(task, worker);
+                URI endpoint = worker.resolve("/judge");
+                ResponseEntity<String> response = restTemplate.postForEntity(endpoint, task, String.class);
+                if (response.getStatusCode().is2xxSuccessful()) {
+                    return new DispatchResult(true, worker.toString(), "accepted");
+                }
+                String message = "worker rejected task with status " + response.getStatusCode().value();
+                workerRegistry.markFailed(worker, message);
+                lastFailure = new DispatchResult(false, worker.toString(), message);
+            } catch (RestClientException ex) {
+                workerRegistry.markFailed(worker, ex.getMessage());
+                lastFailure = new DispatchResult(false, worker.toString(), ex.getMessage());
+            } finally {
+                workerRegistry.release(worker);
+            }
         }
+        return lastFailure != null ? lastFailure : new DispatchResult(false, null, "no healthy worker available");
     }
 
     public Map<String, Object> status() {
@@ -64,7 +74,7 @@ public class DispatcherService {
         }
         String callback = task.getCallbackUrl().replace("/result", "/" + task.getSubmitId() + "/judging");
         try {
-            restTemplate.postForEntity(callback + "?workerId=" + worker.getHost(), null, String.class);
+            restTemplate.postForEntity(callback + "?workerId=" + worker.getAuthority(), null, String.class);
         } catch (RestClientException ignored) {
             // The worker callback remains the source of truth; marking judging is best effort.
         }

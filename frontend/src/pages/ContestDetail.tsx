@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { fetchContestRank, fetchContests, registerContest } from '../api/contests';
+import { useLiveTopic } from '../hooks/useLiveTopic';
 import type { Contest, RankEntry } from '../types';
 
 export default function ContestDetail() {
@@ -24,6 +25,16 @@ export default function ContestDetail() {
       cancelled = true;
     };
   }, [id]);
+
+  const rankLiveState = useLiveTopic<RankEntry[]>(
+    id ? `/topic/contest/${id}/rank` : null,
+    (entries) => {
+      startTransition(() => {
+        setRank(entries);
+      });
+    },
+    Boolean(id),
+  );
 
   async function join() {
     if (!id) return;
@@ -78,6 +89,9 @@ export default function ContestDetail() {
         <div className="panel">
           <div className="panel-header">
             <h2>Contest rank</h2>
+            <span className={`status ${rankLiveState === 'open' ? 'AC' : 'PENDING'}`}>
+              {rankLiveState === 'open' ? 'Live' : 'Reconnect'}
+            </span>
           </div>
           <table className="table">
             <thead>
