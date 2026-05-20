@@ -1,20 +1,23 @@
--- wrk script for submit-service.
+-- wrk script for submit-service / gateway submit path.
 --
--- Example:
+-- Examples:
 --   wrk -t4 -c50 -d5m -s scripts/loadtest-submit.lua http://127.0.0.1:8083
+--   TOKEN=... wrk -t4 -c32 -d60s -s scripts/loadtest-submit.lua http://127.0.0.1:8080
 --
 -- Optional environment variables:
---   USER_ID=1001 PROBLEM_ID=1 CONTEST_ID=100001 LANGUAGE=cpp
+--   TOKEN USER_ID=1001 PROBLEM_ID=1 CONTEST_ID=100001 LANGUAGE=cpp
 
 local counter = 0
 
-local user_id = os.getenv("USER_ID") or "1001"
-local problem_id = tonumber(os.getenv("PROBLEM_ID") or "1")
+local token = os.getenv("TOKEN") or ""
+local user_id = os.getenv("USER_ID") or "1002"
+local problem_id = tonumber(os.getenv("PROBLEM_ID") or "1001")
 local contest_id = os.getenv("CONTEST_ID")
-local language = os.getenv("LANGUAGE") or "cpp"
+local language = os.getenv("LANGUAGE") or "python"
 
 local function source_code(i)
-  return [[
+  if language == "cpp" or language == "c++" then
+    return [[
 #include <bits/stdc++.h>
 using namespace std;
 int main() {
@@ -24,11 +27,20 @@ int main() {
   return 0;
 }
 // loadtest submission ]] .. tostring(i) .. "\n"
+  end
+
+  local codes = {
+    'a,b=map(int,input().split())\nprint(a+b)\n',
+    'print(input()[::-1])\n',
+    'n=int(input())\nprint("odd" if n%2 else "even")\n'
+  }
+  return codes[(i % #codes) + 1]
 end
 
 request = function()
   counter = counter + 1
   local body = {
+    '"userId":' .. user_id,
     '"problemId":' .. problem_id,
     '"language":"' .. language .. '"',
     '"code":' .. string.format("%q", source_code(counter)),
@@ -40,10 +52,15 @@ request = function()
     table.insert(body, '"contestId":' .. tonumber(contest_id))
   end
 
-  return wrk.format("POST", "/api/submit", {
+  local headers = {
     ["Content-Type"] = "application/json",
     ["X-User-Id"] = user_id
-  }, "{" .. table.concat(body, ",") .. "}")
+  }
+  if token ~= "" then
+    headers["Authorization"] = "Bearer " .. token
+  end
+
+  return wrk.format("POST", "/api/submit", headers, "{" .. table.concat(body, ",") .. "}")
 end
 
 done = function(summary, latency, requests)

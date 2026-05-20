@@ -25,4 +25,6 @@ public class ContestDTO {
     private List<Long> problemIds;
     private Long registeredCount;
     private ContestStatus status;
+    private Boolean frozen;
+    private Boolean registered;
 }

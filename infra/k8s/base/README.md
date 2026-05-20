@@ -1,6 +1,6 @@
 # infra/k8s/base/ — 基础 manifest
 
-每个目录代表一个部署单元。`submit-service/` 与 `judge-worker/` 是**参考样板**,已可直接 apply;其余服务复制 `submit-service/deployment.yaml` 改名 + 端口即可。
+每个目录代表一个部署单元。当前 base 已包含 `frontend`、`gateway`、`user-service`、`problem-service`、`submit-service`、`judge-dispatcher`、`judge-worker` 与 `ingress`,可通过 overlays 一次性渲染。
 
 ## 业务服务对应端口
 
@@ -29,4 +29,4 @@
 | prometheus / grafana / alertmanager / skywalking / loki | helm(详见 ../helm/values/)  | judgemesh-observe |
 | chaos-mesh                                        | helm                               | chaos-mesh        |
 
-> Sprint 0 目标:把每个目录的 `deployment.yaml` / `statefulset.yaml` 占位先 push,Sprint 1 再细化资源 / 探针 / PVC。
+base 目录已包含业务 Deployment/Service、探针、资源配额、worker HPA 与 ingress;中间件安装参数在 `infra/helm/values/` 和 `infra/local/` 下维护。

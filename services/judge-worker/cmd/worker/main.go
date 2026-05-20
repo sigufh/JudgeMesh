@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/judgemesh/judge-worker/internal/config"
+	"github.com/judgemesh/judge-worker/internal/metrics"
 	"github.com/judgemesh/judge-worker/internal/server"
 )
 
@@ -26,6 +27,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	cfg := config.Load()
+	metrics.WorkerUp.Set(1)
 	logger.Info("judge-worker starting",
 		"version", version,
 		"listen", cfg.ListenAddr,

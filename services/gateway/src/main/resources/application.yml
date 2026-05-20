@@ -12,28 +12,34 @@ spring:
     nacos:
       server-addr: ${NACOS_ADDR:127.0.0.1:8848}
       discovery:
-        namespace: ${NACOS_NAMESPACE:judgemesh}
+        namespace: ${NACOS_NAMESPACE:}
       config:
-        namespace: ${NACOS_NAMESPACE:judgemesh}
+        namespace: ${NACOS_NAMESPACE:}
         file-extension: yaml
     gateway:
-      discovery:
-        locator:
-          enabled: true
-          lower-case-service-id: true
-      routes:
-        - id: user-service
-          uri: lb://user-service
-          predicates:
-            - Path=/api/users/**
-        - id: problem-service
-          uri: lb://problem-service
-          predicates:
-            - Path=/api/problems/**
-        - id: submit-service
-          uri: lb://submit-service
-          predicates:
-            - Path=/api/submits/**, /api/contests/**, /ws/**
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+          routes:
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/api/user/**, /api/auth/**, /api/users/**
+            - id: problem-service
+              uri: lb://problem-service
+              predicates:
+                - Path=/api/problem/**, /api/problems/**
+            - id: submit-service
+              uri: lb://submit-service
+              predicates:
+                - Path=/api/submit/**, /api/submits/**, /api/contest/**, /api/contests/**, /api/rank/**, /ws/**
+
+judgemesh:
+  jwt:
+    secret: ${JWT_SECRET:local-dev-secret-change-me-32-bytes}
 
 management:
   endpoints:

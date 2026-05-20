@@ -14,7 +14,7 @@ grafana:
   enabled: true
   adminPassword: changeme
   defaultDashboardsEnabled: true
-  # 4 个 JudgeMesh 大盘从 ConfigMap 自动加载(Sprint 1)
+  # 4 JudgeMesh dashboards are loaded from labeled ConfigMaps.
   sidecar:
     dashboards:
       enabled: true

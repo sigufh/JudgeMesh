@@ -24,10 +24,14 @@ spec:
             - { containerPort: 8084, name: http }
           env:
             - { name: SPRING_PROFILES_ACTIVE, value: prod }
-            - { name: DISPATCHER_MODE, value: etcd }
             - { name: NACOS_ADDR, value: nacos.judgemesh-infra.svc:8848 }
             - { name: RABBITMQ_HOST, value: rabbitmq.judgemesh-infra.svc }
+            - { name: ETCD_ENABLED, value: "true" }
+            - { name: ETCD_FAIL_OPEN, value: "false" }
             - { name: ETCD_ENDPOINTS, value: http://etcd.judgemesh-infra.svc:2379 }
+            - { name: JUDGE_WORKER_URLS, value: http://judge-worker.judgemesh.svc:8090 }
+          envFrom:
+            - secretRef: { name: judgemesh-secrets }
           resources:
             requests: { cpu: 200m, memory: 512Mi }
             limits: { cpu: 1000m, memory: 1Gi }
