@@ -33,6 +33,7 @@
         <skywalking.version>9.4.0</skywalking.version>
 
         <!-- 插件 -->
+        <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <jib-maven-plugin.version>3.4.4</jib-maven-plugin.version>
         <docker.registry>docker.io/judgemesh</docker.registry>
     </properties>
@@ -170,8 +171,10 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven-compiler-plugin.version}</version>
                 <configuration>
                     <release>${maven.compiler.release}</release>
+                    <parameters>true</parameters>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>

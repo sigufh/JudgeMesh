@@ -9,3 +9,10 @@
 | `chaos/`                 | ChaosMesh 实验脚本(杀 worker / 杀 leader / MQ down) |
 
 详见 [docs/design/08-部署架构.md](../docs/design/08-部署架构.md)。
+
+当前约定:
+
+- `infra/k8s/base/` 放业务服务与中间件最小可运行资源。
+- `infra/k8s/overlays/dev` 用于联调，默认单副本、低资源。
+- `infra/k8s/overlays/prod` 用于演示/答辩，包含完整中间件和 autoscaling。
+- Helm 安装命令统一引用 `infra/helm/values/*.yaml`，不在 README 之外维护第二套参数。

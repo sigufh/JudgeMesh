@@ -1,4 +1,4 @@
-# helm install chaos-mesh chaos-mesh/chaos-mesh -n chaos-mesh --create-namespace -f .
+# helm install chaos-mesh chaos-mesh/chaos-mesh -n chaos-mesh --create-namespace -f infra/helm/values/chaos-mesh.yaml
 chaosDaemon:
   runtime: containerd
   socketPath: /run/containerd/containerd.sock
@@ -8,3 +8,5 @@ dashboard:
   create: true
   serviceType: NodePort
   securityMode: false # demo 期免登录;生产必须开
+dnsServer:
+  create: true

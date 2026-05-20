@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "spring.cloud.service-registry.auto-registration.enabled=false",
                 "spring.cloud.discovery.enabled=false",
                 "spring.config.import=",
-                "spring.cloud.gateway.discovery.locator.enabled=false",
+                "spring.cloud.gateway.server.webflux.discovery.locator.enabled=false",
                 "eureka.client.enabled=false"
         }
 )

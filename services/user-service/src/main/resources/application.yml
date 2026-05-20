@@ -12,12 +12,12 @@ spring:
     nacos:
       server-addr: ${NACOS_ADDR:127.0.0.1:8848}
       discovery:
-        namespace: ${NACOS_NAMESPACE:judgemesh}
+        namespace: ${NACOS_NAMESPACE:}
       config:
-        namespace: ${NACOS_NAMESPACE:judgemesh}
+        namespace: ${NACOS_NAMESPACE:}
         file-extension: yaml
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/users_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/users_db?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=${MYSQL_ALLOW_PUBLIC_KEY_RETRIEVAL:true}&serverTimezone=UTC
     username: ${MYSQL_USER:judgemesh}
     password: ${MYSQL_PASSWORD:judgemesh}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -29,11 +29,16 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
 
-# Seata 客户端(B 在 Sprint 1 接入)
+# Seata is wired but disabled by default for local development.
 seata:
   enabled: false
   application-id: ${spring.application.name}
   tx-service-group: judgemesh-tx-group
+
+judgemesh:
+  jwt:
+    secret: ${JWT_SECRET:local-dev-secret-change-me-32-bytes}
+    ttl-seconds: ${JWT_TTL_SECONDS:86400}
 
 management:
   endpoints:

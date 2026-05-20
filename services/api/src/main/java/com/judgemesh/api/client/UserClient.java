@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /** user-service Feign 客户端。由 B 实现服务端。 */
-@FeignClient(name = "user-service", path = "/api/users")
+@FeignClient(name = "user-service", path = "/api/user/internal")
 public interface UserClient {
 
     @GetMapping("/{id}")

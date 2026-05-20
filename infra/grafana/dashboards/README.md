@@ -1,6 +1,6 @@
 # Grafana 大盘
 
-Sprint 1 由 E 产出 4 份 JSON(对齐 docs/design/07-可观测性.md):
+当前目录包含 4 份 JSON(对齐 docs/design/07-可观测性.md):
 
 - `oj-live.json` — 业务总览(QPS、用户在线、提交速率)
 - `judge-pipeline.json` — 判题流水线(MQ 队列长度、worker 利用率、判题耗时)

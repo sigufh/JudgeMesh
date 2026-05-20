@@ -1,14 +1,71 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: judgemesh
 
 resources:
+  - ../../base/namespaces
+  - ../../base/app-secrets
+  - ../../base/infra-secrets
+  - ../../base/nacos
+  - ../../base/mysql
+  - ../../base/minio
+  - ../../base/redis
+  - ../../base/rabbitmq
+  - ../../base/etcd
+  - ../../base/cert-manager
+  - ../../base/ingress-nginx
+  - ../../base/grafana-dashboards
+  - ../../base/gateway
+  - ../../base/user-service
+  - ../../base/problem-service
   - ../../base/submit-service
   - ../../base/judge-dispatcher
   - ../../base/judge-worker
-  # TODO add gateway / user-service / problem-service
+  - ../../base/frontend
+  - ../../base/ingress
+
+images:
+  - name: docker.io/judgemesh/judgemesh-gateway
+    newName: docker.io/judgemesh/judgemesh-gateway
+    newTag: latest
+  - name: docker.io/judgemesh/judgemesh-user-service
+    newName: docker.io/judgemesh/judgemesh-user-service
+    newTag: latest
+  - name: docker.io/judgemesh/judgemesh-problem-service
+    newName: docker.io/judgemesh/judgemesh-problem-service
+    newTag: latest
+  - name: docker.io/judgemesh/judgemesh-submit-service
+    newName: docker.io/judgemesh/judgemesh-submit-service
+    newTag: latest
+  - name: docker.io/judgemesh/judgemesh-judge-dispatcher
+    newName: docker.io/judgemesh/judgemesh-judge-dispatcher
+    newTag: latest
+  - name: docker.io/judgemesh/judge-worker
+    newName: docker.io/judgemesh/judge-worker
+    newTag: latest
+  - name: docker.io/judgemesh/frontend
+    newName: docker.io/judgemesh/frontend
+    newTag: latest
 
 patches:
+  - target: { kind: Ingress, name: oj-ingress, namespace: judgemesh }
+    patch: |
+      - op: remove
+        path: /spec/rules/0/host
+  - target: { kind: Deployment, name: gateway }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target: { kind: Deployment, name: user-service }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target: { kind: Deployment, name: problem-service }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
   - target: { kind: Deployment, name: submit-service }
     patch: |
       - op: replace
@@ -20,6 +77,16 @@ patches:
         path: /spec/replicas
         value: 1
   - target: { kind: Deployment, name: judge-worker }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target: { kind: Deployment, name: frontend }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target: { kind: StatefulSet, name: etcd }
     patch: |
       - op: replace
         path: /spec/replicas

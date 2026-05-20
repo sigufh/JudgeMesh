@@ -1,8 +1,14 @@
-# helm install skywalking apache/skywalking -n judgemesh-observe -f .
+# helm install skywalking apache/skywalking -n judgemesh-observe --create-namespace -f infra/helm/values/skywalking.yaml
 oap:
   storageType: elasticsearch
+  replicas: 1
   envoy:
     metricsServiceEnabled: false
+  service:
+    zipkin:
+      enabled: true
+    otlp:
+      enabled: true
 ui:
   service:
     type: NodePort

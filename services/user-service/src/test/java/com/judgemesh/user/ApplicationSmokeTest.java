@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "spring.cloud.service-registry.auto-registration.enabled=false",
                 "spring.cloud.discovery.enabled=false",
                 "spring.config.import=",
+                "judgemesh.security.enabled=false",
                 "spring.flyway.enabled=false",
                 "seata.enabled=false",
                 "eureka.client.enabled=false"

@@ -12,12 +12,12 @@ spring:
     nacos:
       server-addr: ${NACOS_ADDR:127.0.0.1:8848}
       discovery:
-        namespace: ${NACOS_NAMESPACE:judgemesh}
+        namespace: ${NACOS_NAMESPACE:}
       config:
-        namespace: ${NACOS_NAMESPACE:judgemesh}
+        namespace: ${NACOS_NAMESPACE:}
         file-extension: yaml
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/submits_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/submits_db?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=${MYSQL_ALLOW_PUBLIC_KEY_RETRIEVAL:true}&serverTimezone=UTC
     username: ${MYSQL_USER:judgemesh}
     password: ${MYSQL_PASSWORD:judgemesh}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -25,11 +25,12 @@ spring:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
   rabbitmq:
     host: ${RABBITMQ_HOST:127.0.0.1}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    username: ${RABBITMQ_USER:judgemesh}
+    password: ${RABBITMQ_PASSWORD:judgemesh}
   flyway:
     locations: classpath:db/migration
     baseline-on-migrate: true
@@ -39,19 +40,24 @@ mybatis-plus:
     map-underscore-to-camel-case: true
 
 judgemesh:
-  mq:
-    queue: submit.queue
-  leaderboard:
-    global-key: "rank:global"
-    contest-key-prefix: "rank:contest:"
-    contest-pub-sub-prefix: "pubsub:contest:"
-  submission:
-    callback-url: http://submit-service:8083/api/submit/internal/result
-    deduct-score-enabled: ${SUBMIT_DEDUCT_SCORE_ENABLED:false}
-    submit-cost: ${SUBMIT_COST:1}
-  websocket:
-    allowed-origins:
-      - "*"
+    mq:
+      submit-queue: submit.queue
+      submit-exchange: judgemesh.exchange
+      retry-queue: submit.retry.queue
+      dead-queue: submit.dlq
+      submit-routing-key: judge.task
+      retry-routing-key: judge.retry
+      dead-routing-key: judge.dead
+      retry-delay-ms: ${SUBMIT_RETRY_DELAY_MS:5000}
+    leaderboard:
+      redis-key-prefix: leaderboard
+    submit:
+      callback-url: ${SUBMIT_CALLBACK_URL:http://submit-service:8083/api/submit/internal/result}
+      deduct-score-enabled: ${SUBMIT_DEDUCT_SCORE_ENABLED:false}
+      submit-cost: ${SUBMIT_COST:1}
+      code-length-limit: ${SUBMIT_CODE_LENGTH_LIMIT:65536}
+    problem:
+      base-url: ${PROBLEM_SERVICE_URL:http://127.0.0.1:8082}
 
 seata:
   enabled: false

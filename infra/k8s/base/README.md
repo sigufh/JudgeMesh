@@ -1,6 +1,6 @@
 # infra/k8s/base/ — 基础 manifest
 
-每个目录代表一个部署单元。`submit-service/` 与 `judge-worker/` 是**参考样板**,已可直接 apply;其余服务复制 `submit-service/deployment.yaml` 改名 + 端口即可。
+每个目录代表一个部署单元。当前 base 已包含业务服务、中间件、命名空间、Grafana 大盘 ConfigMap 与 autoscaling 配置，可通过 overlays 一次性渲染。
 
 ## 业务服务对应端口
 
@@ -13,20 +13,25 @@
 | judge-dispatcher  | 8084 | judgemesh  |
 | judge-worker      | 8090 | judgemesh  |
 
-## 中间件命名空间
+## 平台组件
 
-| 组件                                              | 部署方式                           | 命名空间          |
+| 组件                                              | 交付位置                           | 命名空间          |
 | ------------------------------------------------- | ---------------------------------- | ----------------- |
-| nacos                                             | nacos-k8s helm chart               | judgemesh-infra   |
-| mysql                                             | StatefulSet + PVC                  | judgemesh-infra   |
-| redis                                             | StatefulSet + PVC                  | judgemesh-infra   |
-| rabbitmq                                          | RabbitMQ Cluster Operator          | judgemesh-infra   |
-| etcd                                              | StatefulSet 3 副本                 | judgemesh-infra   |
-| minio                                             | MinIO Operator                     | judgemesh-infra   |
-| seata-server                                      | StatefulSet                        | judgemesh-infra   |
-| ingress-nginx                                     | helm                               | ingress-nginx     |
-| cert-manager                                      | helm                               | cert-manager      |
-| prometheus / grafana / alertmanager / skywalking / loki | helm(详见 ../helm/values/)  | judgemesh-observe |
-| chaos-mesh                                        | helm                               | chaos-mesh        |
+| namespaces / 基础 secret 模板                     | `base/namespaces` `base/app-secrets` `base/infra-secrets` | 多命名空间 |
+| nacos                                             | `base/nacos`                       | judgemesh-infra   |
+| redis                                             | `base/redis`                       | judgemesh-infra   |
+| rabbitmq                                          | `base/rabbitmq`                    | judgemesh-infra   |
+| etcd                                              | `base/etcd`                        | judgemesh-infra   |
+| cert-manager issuer                               | `base/cert-manager`                | cert-manager      |
+| ingress-nginx metrics service                     | `base/ingress-nginx`               | ingress-nginx     |
+| judge-worker queue autoscaling                    | `base/keda`                        | judgemesh         |
+| grafana dashboards ConfigMap                      | `base/grafana-dashboards`          | judgemesh-observe |
+| prometheus / grafana / alertmanager / skywalking / loki | helm values(详见 ../helm/values/) | judgemesh-observe |
+| chaos-mesh                                        | helm values + `infra/chaos/`       | chaos-mesh        |
 
-> Sprint 0 目标:把每个目录的 `deployment.yaml` / `statefulset.yaml` 占位先 push,Sprint 1 再细化资源 / 探针 / PVC。
+业务服务保持 Deployment/Service + 探针的基础模式；中间件以 StatefulSet + PVC 为主；可观测性和混沌组件继续通过 Helm values 安装。
+
+注意:
+
+- `app-secrets` 与 `infra-secrets` 里的 `change-me` 仅用于模板占位，实际部署前必须改成外部注入或 CI secret 渲染。
+- `prod` overlay 默认包含 KEDA `ScaledObject`，依赖集群已安装 KEDA CRD/Operator。
