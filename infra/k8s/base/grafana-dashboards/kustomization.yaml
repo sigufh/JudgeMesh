@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: judgemesh-observe
+
+configMapGenerator:
+  - name: grafana-dashboard-oj-live
+    files:
+      - dashboard.json=oj-live.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+  - name: grafana-dashboard-judge-pipeline
+    files:
+      - dashboard.json=judge-pipeline.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+  - name: grafana-dashboard-governance
+    files:
+      - dashboard.json=governance.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+  - name: grafana-dashboard-infra
+    files:
+      - dashboard.json=infra.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+
+generatorOptions:
+  disableNameSuffixHash: true

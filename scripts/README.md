@@ -1,4 +1,4 @@
-# scripts/ - 运维与工具脚本
+# scripts/ - Operations And Utility Scripts
 
 | Script | Purpose | Owner | Status |
 | ------ | ------- | ----- | ------ |

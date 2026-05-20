@@ -35,7 +35,15 @@ spring:
             - id: submit-service
               uri: lb://submit-service
               predicates:
-                - Path=/api/submit/**, /api/submits/**, /api/contest/**, /api/contests/**, /api/rank/**, /ws/**
+                - Path=/api/submit/**, /api/submits/**, /api/contest/**, /api/contests/**, /api/rank/**
+            - id: submit-service-ws
+              uri: lb:ws://submit-service
+              predicates:
+                - Path=/ws, /ws/**
+            - id: judge-dispatcher-admin
+              uri: lb://judge-dispatcher
+              predicates:
+                - Path=/api/admin/dispatcher/**, /admin/dispatcher/**
 
 judgemesh:
   jwt:
