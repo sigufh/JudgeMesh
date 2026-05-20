@@ -1,6 +1,7 @@
 package com.judgemesh.api.dto;
 
-import com.judgemesh.api.enumx.ContestStatus;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,18 +14,22 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ContestDTO {
-    private Long id;
+public class ContestUpsertRequest {
+
+    @NotBlank
     private String title;
+
     private String description;
+
+    @NotNull
     private Instant startTime;
+
+    @NotNull
     private Instant endTime;
-    private Integer freezeBeforeMin;
-    private Long createdBy;
-    private Instant createdAt;
-    private List<Long> problemIds;
-    private Long registeredCount;
-    private ContestStatus status;
-    private Boolean frozen;
-    private Boolean registered;
+
+    @Builder.Default
+    private Integer freezeBeforeMin = 30;
+
+    @Builder.Default
+    private List<Long> problemIds = List.of();
 }

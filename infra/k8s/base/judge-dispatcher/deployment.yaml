@@ -24,6 +24,7 @@ spec:
             - { containerPort: 8084, name: http }
           env:
             - { name: SPRING_PROFILES_ACTIVE, value: prod }
+            - { name: DISPATCHER_MODE, value: etcd }
             - { name: NACOS_ADDR, value: nacos.judgemesh-infra.svc:8848 }
             - { name: RABBITMQ_HOST, value: rabbitmq.judgemesh-infra.svc }
             - { name: ETCD_ENABLED, value: "true" }

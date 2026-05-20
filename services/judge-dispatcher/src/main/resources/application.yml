@@ -24,6 +24,7 @@ spring:
     listener:
       simple:
         prefetch: 1
+        default-requeue-rejected: true
         retry:
           enabled: true
           max-attempts: 3
