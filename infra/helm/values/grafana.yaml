@@ -1,0 +1,4 @@
+# JudgeMesh keeps Grafana under kube-prometheus-stack.
+# This file exists so automation and reviewers have a stable values path.
+enabled: false
+adminPassword: changeme

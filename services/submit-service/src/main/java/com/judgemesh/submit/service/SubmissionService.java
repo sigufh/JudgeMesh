@@ -125,6 +125,7 @@ public class SubmissionService {
                 contestStart = contestService.get(submission.getContestId()).getStartTime();
             }
             rankingService.accepted(submission, contestStart);
+            notifyGlobalRank();
         }
         notifySubmission(submission);
         if (submission.getContestId() != null) {
@@ -256,6 +257,13 @@ public class SubmissionService {
         SimpMessagingTemplate template = messagingTemplate.getIfAvailable();
         if (template != null) {
             template.convertAndSend("/topic/contest/" + contestId + "/rank", rankingService.contestRank(contestId));
+        }
+    }
+
+    private void notifyGlobalRank() {
+        SimpMessagingTemplate template = messagingTemplate.getIfAvailable();
+        if (template != null) {
+            template.convertAndSend("/topic/rank/global", rankingService.globalRank());
         }
     }
 

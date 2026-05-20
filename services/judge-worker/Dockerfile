@@ -12,6 +12,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV JUDGE_ALLOW_UNSANDBOXED=false
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        asciidoc-base \
         ca-certificates \
         curl \
         gcc \
@@ -21,10 +22,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         openjdk-17-jdk-headless \
         python3 \
         libcap-dev \
+        libseccomp-dev \
+        libsystemd-dev \
         pkg-config \
     && git clone --depth=1 https://github.com/ioi/isolate /tmp/isolate \
-    && make -C /tmp/isolate \
-    && make -C /tmp/isolate install \
+    && make -C /tmp/isolate isolate isolate-cg-keeper \
+    && install -Dm755 /tmp/isolate/isolate /usr/local/bin/isolate \
+    && install -Dm755 /tmp/isolate/isolate-cg-keeper /usr/local/sbin/isolate-cg-keeper \
+    && mkdir -p /usr/local/etc /var/local/lib/isolate \
     && rm -rf /tmp/isolate /var/lib/apt/lists/*
 
 COPY --from=builder /out/worker /usr/local/bin/worker

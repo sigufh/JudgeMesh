@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { fetchProblem } from '../api/problems';
-import { createSubmit, fetchSubmit } from '../api/submits';
+import { createSubmit } from '../api/submits';
+import { useLiveTopic } from '../hooks/useLiveTopic';
 import type { Problem, Submit } from '../types';
 
 const starterCode: Record<string, string> = {
@@ -13,8 +14,6 @@ const starterCode: Record<string, string> = {
 
 const terminalStatuses = new Set(['AC', 'WA', 'TLE', 'MLE', 'RE', 'CE', 'SE']);
 
-const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
-
 export default function ProblemDetail() {
   const { id } = useParams<{ id: string }>();
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -23,6 +22,18 @@ export default function ProblemDetail() {
   const [submit, setSubmit] = useState<Submit | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const submitLiveState = useLiveTopic<Submit>(
+    submit ? `/topic/submission/${submit.id}` : null,
+    (nextSubmit) => {
+      startTransition(() => {
+        setSubmit(nextSubmit);
+        if (terminalStatuses.has(nextSubmit.status)) {
+          setBusy(false);
+        }
+      });
+    },
+    Boolean(submit),
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -51,15 +62,11 @@ export default function ProblemDetail() {
     try {
       const { data } = await createSubmit({ problemId: Number(id), language, code });
       setSubmit(data);
-      for (let attempt = 0; attempt < 20 && !terminalStatuses.has(data.status); attempt += 1) {
-        await wait(750);
-        const next = await fetchSubmit(data.id);
-        setSubmit(next.data);
-        if (terminalStatuses.has(next.data.status)) break;
+      if (terminalStatuses.has(data.status)) {
+        setBusy(false);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submit failed');
-    } finally {
       setBusy(false);
     }
   }
@@ -109,7 +116,7 @@ export default function ProblemDetail() {
             <textarea value={code} onChange={(event) => setCode(event.target.value)} spellCheck={false} />
           </label>
           <button className="button" type="button" onClick={submitCode} disabled={busy}>
-            {busy ? 'Judging...' : 'Submit to queue'}
+            {busy ? 'Waiting for live result...' : 'Submit to queue'}
           </button>
           {submit && (
             <div className="notice">
@@ -118,6 +125,7 @@ export default function ProblemDetail() {
               {submit.score != null && <> / score {submit.score}</>}
               {submit.judgedByWorker && <> / {submit.judgedByWorker}</>}.{' '}
               <Link to="/submits">Track it</Link>.
+              <div className="muted">live channel {submitLiveState === 'open' ? 'connected' : 'reconnecting'}</div>
               {submit.judgeMessage && <div className="muted">{submit.judgeMessage}</div>}
             </div>
           )}

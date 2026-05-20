@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchContests, fetchGlobalRank, registerContest } from '../api/contests';
+import { useLiveTopic } from '../hooks/useLiveTopic';
+import { asArray } from '../lib/normalize';
 import type { Contest, RankEntry } from '../types';
 
 export default function Contests() {
@@ -12,14 +14,20 @@ export default function Contests() {
     let cancelled = false;
     Promise.allSettled([fetchContests(), fetchGlobalRank()]).then((results) => {
       if (cancelled) return;
-      if (results[0].status === 'fulfilled') setContests(results[0].value.data);
-      if (results[1].status === 'fulfilled') setRank(results[1].value.data);
+      if (results[0].status === 'fulfilled') setContests(asArray<Contest>(results[0].value.data));
+      if (results[1].status === 'fulfilled') setRank(asArray<RankEntry>(results[1].value.data));
       if (results[0].status === 'rejected') setError('Failed to load contests');
     });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const globalLiveState = useLiveTopic<RankEntry[]>('/topic/rank/global', (entries) => {
+    startTransition(() => {
+      setRank(asArray<RankEntry>(entries));
+    });
+  });
 
   async function join(contest: Contest) {
     setError('');
@@ -89,6 +97,9 @@ export default function Contests() {
         <div className="panel">
           <div className="panel-header">
             <h2>Global board</h2>
+            <span className={`status ${globalLiveState === 'open' ? 'AC' : 'PENDING'}`}>
+              {globalLiveState === 'open' ? 'Live' : 'Reconnect'}
+            </span>
           </div>
           <table className="table">
             <thead>

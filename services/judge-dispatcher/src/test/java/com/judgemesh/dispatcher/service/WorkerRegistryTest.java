@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -51,6 +52,21 @@ class WorkerRegistryTest {
         URI worker = registry.acquire();
 
         assertThat(worker).isEqualTo(URI.create(healthy));
+    }
+
+    @Test
+    void acquireCanSkipAlreadyAttemptedWorkers() throws IOException {
+        String workerA = startWorker(200);
+        String workerB = startWorker(200);
+        WorkerRegistry registry = new WorkerRegistry(workerA + "," + workerB, 5, new RestTemplate());
+
+        URI first = registry.acquire();
+        registry.release(first);
+
+        URI second = registry.acquire(Set.of(first));
+
+        assertThat(second).isNotEqualTo(first);
+        assertThat(Set.of(URI.create(workerA), URI.create(workerB))).contains(second);
     }
 
     private String startWorker(int healthStatus) throws IOException {
