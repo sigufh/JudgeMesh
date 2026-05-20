@@ -2,6 +2,7 @@ import { startTransition, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchMySubmits } from '../api/submits';
 import { useLiveTopic } from '../hooks/useLiveTopic';
+import { asArray } from '../lib/normalize';
 import type { Submit } from '../types';
 
 export default function Submits() {
@@ -17,7 +18,7 @@ export default function Submits() {
     try {
       const { data } = await fetchMySubmits();
       startTransition(() => {
-        setSubmits(data);
+        setSubmits(asArray<Submit>(data));
         setError('');
         setLoading(false);
       });

@@ -2,6 +2,7 @@ import { startTransition, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchContests, fetchGlobalRank, registerContest } from '../api/contests';
 import { useLiveTopic } from '../hooks/useLiveTopic';
+import { asArray } from '../lib/normalize';
 import type { Contest, RankEntry } from '../types';
 
 export default function Contests() {
@@ -13,8 +14,8 @@ export default function Contests() {
     let cancelled = false;
     Promise.allSettled([fetchContests(), fetchGlobalRank()]).then((results) => {
       if (cancelled) return;
-      if (results[0].status === 'fulfilled') setContests(results[0].value.data);
-      if (results[1].status === 'fulfilled') setRank(results[1].value.data);
+      if (results[0].status === 'fulfilled') setContests(asArray<Contest>(results[0].value.data));
+      if (results[1].status === 'fulfilled') setRank(asArray<RankEntry>(results[1].value.data));
       if (results[0].status === 'rejected') setError('Failed to load contests');
     });
     return () => {
@@ -24,7 +25,7 @@ export default function Contests() {
 
   const globalLiveState = useLiveTopic<RankEntry[]>('/topic/rank/global', (entries) => {
     startTransition(() => {
-      setRank(entries);
+      setRank(asArray<RankEntry>(entries));
     });
   });
 

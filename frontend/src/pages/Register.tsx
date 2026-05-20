@@ -36,11 +36,25 @@ export default function Register() {
       <form className="panel pad stack" onSubmit={submit}>
         <label className="field">
           <span>Username</span>
-          <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" />
+          <input
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            autoComplete="username"
+            minLength={3}
+            maxLength={64}
+            required
+          />
+          <span className="muted">3-64 characters.</span>
         </label>
         <label className="field">
           <span>Email</span>
-          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+            required
+          />
         </label>
         <label className="field">
           <span>Password</span>
@@ -49,7 +63,11 @@ export default function Register() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="new-password"
+            minLength={8}
+            maxLength={128}
+            required
           />
+          <span className="muted">At least 8 characters.</span>
         </label>
         <label className="field">
           <span>Role</span>

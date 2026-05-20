@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - ../../base/namespaces
   - ../../base/app-secrets
+  - ../../base/infra-app-secrets
   - ../../base/infra-secrets
   - ../../base/nacos
   - ../../base/mysql
@@ -11,7 +12,6 @@ resources:
   - ../../base/redis
   - ../../base/rabbitmq
   - ../../base/etcd
-  - ../../base/cert-manager
   - ../../base/ingress-nginx
   - ../../base/grafana-dashboards
   - ../../base/gateway
@@ -25,25 +25,25 @@ resources:
 
 images:
   - name: docker.io/judgemesh/judgemesh-gateway
-    newName: docker.io/judgemesh/judgemesh-gateway
+    newName: asia-east1-docker.pkg.dev/project-ad762830-bf41-4f10-b00/judgemesh/judgemesh-gateway
     newTag: latest
   - name: docker.io/judgemesh/judgemesh-user-service
-    newName: docker.io/judgemesh/judgemesh-user-service
+    newName: asia-east1-docker.pkg.dev/project-ad762830-bf41-4f10-b00/judgemesh/judgemesh-user-service
     newTag: latest
   - name: docker.io/judgemesh/judgemesh-problem-service
-    newName: docker.io/judgemesh/judgemesh-problem-service
+    newName: asia-east1-docker.pkg.dev/project-ad762830-bf41-4f10-b00/judgemesh/judgemesh-problem-service
     newTag: latest
   - name: docker.io/judgemesh/judgemesh-submit-service
-    newName: docker.io/judgemesh/judgemesh-submit-service
+    newName: asia-east1-docker.pkg.dev/project-ad762830-bf41-4f10-b00/judgemesh/judgemesh-submit-service
     newTag: latest
   - name: docker.io/judgemesh/judgemesh-judge-dispatcher
-    newName: docker.io/judgemesh/judgemesh-judge-dispatcher
+    newName: asia-east1-docker.pkg.dev/project-ad762830-bf41-4f10-b00/judgemesh/judgemesh-judge-dispatcher
     newTag: latest
   - name: docker.io/judgemesh/judge-worker
-    newName: docker.io/judgemesh/judge-worker
+    newName: asia-east1-docker.pkg.dev/project-ad762830-bf41-4f10-b00/judgemesh/judge-worker
     newTag: latest
   - name: docker.io/judgemesh/frontend
-    newName: docker.io/judgemesh/frontend
+    newName: asia-east1-docker.pkg.dev/project-ad762830-bf41-4f10-b00/judgemesh/frontend
     newTag: latest
 
 patches:
@@ -59,6 +59,12 @@ patches:
       - op: add
         path: /spec/template/spec/nodeSelector
         value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 100m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 256Mi
   - target: { kind: Deployment, name: user-service }
     patch: |
       - op: replace
@@ -67,6 +73,12 @@ patches:
       - op: add
         path: /spec/template/spec/nodeSelector
         value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 100m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 256Mi
   - target: { kind: Deployment, name: problem-service }
     patch: |
       - op: replace
@@ -75,6 +87,12 @@ patches:
       - op: add
         path: /spec/template/spec/nodeSelector
         value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 100m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 256Mi
   - target: { kind: Deployment, name: submit-service }
     patch: |
       - op: replace
@@ -83,6 +101,12 @@ patches:
       - op: add
         path: /spec/template/spec/nodeSelector
         value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 100m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 256Mi
   - target: { kind: Deployment, name: frontend }
     patch: |
       - op: replace
@@ -91,6 +115,12 @@ patches:
       - op: add
         path: /spec/template/spec/nodeSelector
         value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 25m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 64Mi
   - target: { kind: Deployment, name: judge-dispatcher }
     patch: |
       - op: replace
@@ -99,6 +129,12 @@ patches:
       - op: add
         path: /spec/template/spec/nodeSelector
         value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 100m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 256Mi
   - target: { kind: Deployment, name: judge-worker }
     patch: |
       - op: replace
@@ -128,18 +164,93 @@ patches:
       - op: add
         path: /spec/template/spec/nodeSelector
         value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 50m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 128Mi
+  - target: { kind: StatefulSet, name: mysql }
+    patch: |
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 150m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 512Mi
+  - target: { kind: StatefulSet, name: minio }
+    patch: |
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 50m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 128Mi
   - target: { kind: StatefulSet, name: nacos }
     patch: |
       - op: add
         path: /spec/template/spec/nodeSelector
         value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
+        value: "false"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 150m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 512Mi
+      - op: add
+        path: /spec/template/spec/containers/0/startupProbe
+        value:
+          httpGet:
+            path: /nacos/actuator/health
+            port: 8848
+          periodSeconds: 10
+          failureThreshold: 30
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/initialDelaySeconds
+        value: 90
+      - op: add
+        path: /spec/template/spec/containers/0/readinessProbe/periodSeconds
+        value: 10
+      - op: add
+        path: /spec/template/spec/containers/0/readinessProbe/failureThreshold
+        value: 12
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/initialDelaySeconds
+        value: 180
+      - op: add
+        path: /spec/template/spec/containers/0/livenessProbe/periodSeconds
+        value: 20
+      - op: add
+        path: /spec/template/spec/containers/0/livenessProbe/failureThreshold
+        value: 6
   - target: { kind: StatefulSet, name: redis }
     patch: |
       - op: add
         path: /spec/template/spec/nodeSelector
         value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 50m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 128Mi
   - target: { kind: StatefulSet, name: rabbitmq }
     patch: |
       - op: add
         path: /spec/template/spec/nodeSelector
         value: { role: app }
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 100m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 256Mi

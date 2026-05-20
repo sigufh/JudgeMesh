@@ -9,6 +9,7 @@ import { fetchContests, fetchGlobalRank } from '../api/contests';
 import { fetchProblems } from '../api/problems';
 import { fetchMySubmits } from '../api/submits';
 import { useLiveTopic } from '../hooks/useLiveTopic';
+import { asArray, normalizeDispatcherStatus } from '../lib/normalize';
 import type { Contest, DispatcherStatus, Problem, RankEntry, Submit } from '../types';
 
 export default function Home() {
@@ -24,10 +25,10 @@ export default function Home() {
     let cancelled = false;
     Promise.allSettled([fetchProblems(), fetchContests(), fetchMySubmits(), fetchGlobalRank()]).then((results) => {
       if (cancelled) return;
-      if (results[0].status === 'fulfilled') setProblems(results[0].value.data);
-      if (results[1].status === 'fulfilled') setContests(results[1].value.data);
-      if (results[2].status === 'fulfilled') setSubmits(results[2].value.data);
-      if (results[3].status === 'fulfilled') setRank(results[3].value.data);
+      if (results[0].status === 'fulfilled') setProblems(asArray<Problem>(results[0].value.data));
+      if (results[1].status === 'fulfilled') setContests(asArray<Contest>(results[1].value.data));
+      if (results[2].status === 'fulfilled') setSubmits(asArray<Submit>(results[2].value.data));
+      if (results[3].status === 'fulfilled') setRank(asArray<RankEntry>(results[3].value.data));
     });
     return () => {
       cancelled = true;
@@ -42,7 +43,7 @@ export default function Home() {
         const { data } = await fetchDispatcherStatus();
         if (cancelled) return;
         startTransition(() => {
-          setDispatcher(data);
+          setDispatcher(normalizeDispatcherStatus(data));
           setStatusError('');
         });
       } catch (err: unknown) {
@@ -65,7 +66,7 @@ export default function Home() {
 
   const globalLiveState = useLiveTopic<RankEntry[]>('/topic/rank/global', (entries) => {
     startTransition(() => {
-      setRank(entries);
+      setRank(asArray<RankEntry>(entries));
     });
   });
 
@@ -79,7 +80,7 @@ export default function Home() {
       const response = action === 'relinquish'
         ? await relinquishDispatcherLeader()
         : await reacquireDispatcherLeader();
-      setDispatcher(response.data);
+      setDispatcher(normalizeDispatcherStatus(response.data));
     } catch (err: unknown) {
       setStatusError(err instanceof Error ? err.message : 'Dispatcher control failed');
     } finally {

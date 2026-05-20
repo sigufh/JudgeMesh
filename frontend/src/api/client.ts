@@ -27,6 +27,17 @@ client.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
+    const payload = error.response?.data;
+    if (payload && typeof payload === 'object') {
+      const message = 'message' in payload && typeof payload.message === 'string'
+        ? payload.message
+        : 'detail' in payload && typeof payload.detail === 'string'
+          ? payload.detail
+          : null;
+      if (message) {
+        error.message = message;
+      }
+    }
     if (error.response?.status === 401) {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);

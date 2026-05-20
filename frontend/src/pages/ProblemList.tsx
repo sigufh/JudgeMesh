@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchProblems } from '../api/problems';
+import { asArray } from '../lib/normalize';
 import type { Problem } from '../types';
 
 const difficulties = ['', 'EASY', 'MEDIUM', 'HARD'];
@@ -17,7 +18,7 @@ export default function ProblemList() {
     const timer = window.setTimeout(() => {
       fetchProblems({ q, difficulty: difficulty || undefined })
         .then(({ data }) => {
-          if (!cancelled) setProblems(data);
+          if (!cancelled) setProblems(asArray<Problem>(data));
         })
         .catch((err: unknown) => {
           if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load problems');
