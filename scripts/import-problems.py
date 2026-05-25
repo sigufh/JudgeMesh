@@ -1,17 +1,14 @@
+import os
+import json
 import requests
-import random
-import io
 
-#这个脚本，暂时先搞一点水题，测试流程是否成功运行
-
-# Problem-Service 本地地址
 API_URL = "http://localhost:8082/api/problems"
-HEADERS = {"X-User-Id": "99"} # 模拟一个出题人ID
+HEADERS = {"X-User-Id": "99"} # 模拟一个高权限的出题人
 
-# 给批量生成的占位题准备的词库
-TITLES = ["Two Sum", "Fibonacci Number", "Reverse Linked List", "Binary Search", "Climbing Stairs", "Valid Parentheses"]
-TAGS = ["Math", "Array", "String", "Dynamic Programming", "Graph", "Greedy"]
-DIFFICULTIES = ["EASY", "MEDIUM", "HARD"]
+# 动态定位 demo-problems 目录
+base_dir = os.path.dirname(os.path.abspath(__file__))          # scripts/
+project_root = os.path.dirname(base_dir)                       # JudgeMesh/
+DEMO_DIR = os.path.join(project_root, "data", "demo-problems") # JudgeMesh/data/demo-problems
 
 def create_problem(title, desc, tl, ml, diff, tags):
     payload = {
@@ -22,56 +19,89 @@ def create_problem(title, desc, tl, ml, diff, tags):
         "difficulty": diff,
         "tags": tags
     }
-    resp = requests.post(API_URL, json=payload, headers=HEADERS)
-    resp_json = resp.json()
-    if resp_json.get("code") == "0":
-        print(f"✅ 创建成功 [ID: {resp_json['data']}] - {title}")
-        return resp_json["data"]
-    else:
-        print(f"❌ 创建失败: {resp_json}")
+    try:
+        resp = requests.post(API_URL, json=payload, headers=HEADERS, timeout=5)
+        resp_json = resp.json()
+        if resp.status_code == 200 and resp_json.get("code") == "0":
+            return resp_json["data"]
+        else:
+            print(f"❌ 题目创建失败: {resp.text}")
+            return None
+    except Exception as e:
+        print(f"❌ 请求 API 异常: {e}")
         return None
 
-def upload_testcase(problem_id, case_index, in_content, ans_content):
+def upload_testcase(problem_id, case_index, in_path, ans_path, score):
     url = f"{API_URL}/{problem_id}/testcases"
+    try:
+        # 直接读取本地真实文件并上传
+        with open(in_path, 'rb') as f_in, open(ans_path, 'rb') as f_ans:
+            files = {
+                # 加上 'text/plain' 完美解决之前的 content-type 报错问题
+                'inputFile': (f'{case_index}.in', f_in, 'text/plain'),
+                'outputFile': (f'{case_index}.ans', f_ans, 'text/plain')
+            }
+            data = {'caseIndex': case_index, 'score': score}
+            resp = requests.post(url, files=files, data=data, headers=HEADERS, timeout=10)
 
-    # 将字符串转为内存文件流，模拟真实文件上传
-    # 明确指定 Content-Type 为 text/plain
-    files = {
-            'inputFile': (f'{case_index}.in', io.BytesIO(in_content.encode('utf-8')), 'text/plain'),
-            'outputFile': (f'{case_index}.ans', io.BytesIO(ans_content.encode('utf-8')), 'text/plain')
-    }
-    data = {'caseIndex': case_index, 'score': 100 // 2} # 假设每题2个用例，每个50分
-
-    resp = requests.post(url, files=files, data=data, headers=HEADERS)
-    if resp.json().get("code") == "0":
-        print(f"  └── 📁 用例 {case_index} 上传 MinIO 成功")
-    else:
-        print(f"  └── ⚠️ 用例上传失败: {resp.text}")
+            if resp.status_code == 200 and resp.json().get("code") == "0":
+                print(f"    └── 📁 测试用例 {case_index} 上传 MinIO 成功")
+            else:
+                print(f"    └── ⚠️ 用例上传失败: {resp.text}")
+    except Exception as e:
+        print(f"    └── ⚠️ 文件读取或上传异常: {e}")
 
 def main():
-    print("🚀 开始一键导入 JudgeMesh 测试题库...\n")
+    print("🚀 开始自动导入本地真实题库...")
+    if not os.path.exists(DEMO_DIR):
+        print(f"⚠️ 找不到目录 {DEMO_DIR}，请确认路径是否正确。")
+        return
 
-    # 1. 创建 1 道“黄金演示题”
-    print("--- 🌟 正在创建黄金演示题 ---")
-    pid_1 = create_problem("A+B Problem", "请计算两个整数 $a$ 和 $b$ 的和。\n\n**输入**：两个空格隔开的整数。\n**输出**：一个整数，即它们的和。", 1000, 256, "EASY", ["Math", "Basic"])
-    if pid_1:
-        upload_testcase(pid_1, 1, "1 2\n", "3\n")
-        upload_testcase(pid_1, 2, "100 200\n", "300\n")
+    # 按文件夹名字（P1010, P1011...）排序遍历
+    folders = sorted(os.listdir(DEMO_DIR))
+    success_count = 0
 
-    # 2. 自动生成 49 道占位题凑数
-    print("\n--- 🤖 正在批量生成 49 道占位题 ---")
-    for i in range(2, 51):
-        title = f"{random.choice(TITLES)} {i}"
-        desc = f"这是系统自动生成的第 {i} 道测试题，用于演示分页和大量数据处理。\n\n请使用恰当的算法解决该问题。"
-        tags = random.sample(TAGS, k=random.randint(1, 3))
-        diff = random.choice(DIFFICULTIES)
+    for folder_name in folders:
+        prob_path = os.path.join(DEMO_DIR, folder_name)
+        if not os.path.isdir(prob_path):
+            continue
 
-        pid = create_problem(title, desc, 1000, 256, diff, tags)
+        meta_path = os.path.join(prob_path, "meta.json")
+        desc_path = os.path.join(prob_path, "description.md")
+
+        # 严格检查文件完整性
+        if not os.path.exists(meta_path) or not os.path.exists(desc_path):
+            continue
+
+        # 加载元数据和 Markdown
+        with open(meta_path, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+        with open(desc_path, 'r', encoding='utf-8') as f:
+            desc = f.read()
+
+        print(f"\n正在导入: {folder_name} - {meta.get('title')}")
+
+        # 1. 写入 MySQL
+        pid = create_problem(meta['title'], desc, meta['timeLimitMs'], meta['memoryLimitMb'], meta['difficulty'], meta['tags'])
+
         if pid:
-            # 顺便给水题塞一对假用例
-            upload_testcase(pid, 1, f"fake input {i}\n", f"fake output {i}\n")
+            success_count += 1
+            tc_path = os.path.join(prob_path, "testcases")
+            if os.path.exists(tc_path):
+                # 2. 依次读取用例文件传到 MinIO
+                case_index = 1
+                while True:
+                    in_file = os.path.join(tc_path, f"{case_index}.in")
+                    ans_file = os.path.join(tc_path, f"{case_index}.ans")
 
-    print("\n🎉 题库初始化完毕！共 50 道题目！")
+                    # 用例断层，说明这个题目的用例读完了
+                    if not os.path.exists(in_file) or not os.path.exists(ans_file):
+                        break
+
+                    upload_testcase(pid, case_index, in_file, ans_file, 10) # 默认每条用例10分
+                    case_index += 1
+
+    print(f"\n🎉 题库自动部署完毕！成功导入 {success_count} 道真实题目。")
 
 if __name__ == "__main__":
     main()

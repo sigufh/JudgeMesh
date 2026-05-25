@@ -35,6 +35,10 @@ import java.util.stream.Collectors;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -56,6 +60,22 @@ public class ProblemServiceImpl implements ProblemService {
 
     // 文档规定的缓存 Key 前缀
     private static final String CACHE_KEY_PREFIX = "cache:problem:";
+
+    // 注入监控指标注册表
+    private final MeterRegistry meterRegistry;
+
+    // 声明三个计数器
+    private Counter cacheHitCounter;
+    private Counter cacheMissCounter;
+    private Counter problemViewCounter;
+
+    // 在项目启动时，初始化这三个计数器
+    @PostConstruct
+    public void initMetrics() {
+        cacheHitCounter = meterRegistry.counter("problem_cache_hit_total", "type", "problem_detail");
+        cacheMissCounter = meterRegistry.counter("problem_cache_miss_total", "type", "problem_detail");
+        problemViewCounter = meterRegistry.counter("problem_view_total");
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -121,6 +141,9 @@ public class ProblemServiceImpl implements ProblemService {
 
     @Override
     public ProblemDTO getProblemDetail(Long id) {
+        // 埋点 1：题目被访问了一次，计数器 +1
+        problemViewCounter.increment();
+
         String cacheKey = CACHE_KEY_PREFIX + id;
         String cachedJson = stringRedisTemplate.opsForValue().get(cacheKey);
 
@@ -128,16 +151,23 @@ public class ProblemServiceImpl implements ProblemService {
         if (StringUtils.hasText(cachedJson)) {
             // 防穿透第一道防线：发现是之前存的空标记，直接返回 null，不打扰 MySQL
             if ("{}".equals(cachedJson)) {
+                // 埋点 2：防穿透缓存命中，算作命中缓存
+                cacheHitCounter.increment();
                 log.info("题目 {} 命中防穿透空缓存", id);
                 return null;
             }
             try {
+                // 埋点 2：真实数据缓存命中
+                cacheHitCounter.increment();
                 log.info("题目 {} 命中 Redis 缓存", id);
                 return objectMapper.readValue(cachedJson, ProblemDTO.class);
             } catch (Exception e) {
                 log.warn("Redis 缓存解析失败，退化查库", e);
             }
         }
+
+        // 埋点 3：只要执行到这里，说明缓存没命中（穿透到 DB 了）
+        cacheMissCounter.increment();
 
         // 2. 缓存未命中，准备查库（防击穿：使用 Redisson 分布式锁）
         // 锁的粒度细化到具体的题目ID，避免全局阻塞
@@ -152,6 +182,8 @@ public class ProblemServiceImpl implements ProblemService {
                 // 因为可能在你等锁的期间，前面的线程已经查完 MySQL 并把缓存写好了
                 cachedJson = stringRedisTemplate.opsForValue().get(cacheKey);
                 if (StringUtils.hasText(cachedJson)) {
+                    // 埋点补漏：double check 命中缓存
+                    cacheHitCounter.increment();
                     if ("{}".equals(cachedJson)) return null;
                     return objectMapper.readValue(cachedJson, ProblemDTO.class);
                 }
