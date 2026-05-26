@@ -5,6 +5,8 @@
 # 销毁:
 #   docker compose -f infra/local/docker-compose.yml down -v
 
+#C模块完成过程中对该文件做了一些小改动，合并时需要审查修改
+
 name: judgemesh-local
 
 networks:
@@ -115,7 +117,7 @@ services:
       echo 'minio buckets ready';
       "
 
-  # ─── etcd 3.5(单节点)(暂时用不到) ──────────────────────────────────────
+  # ─── etcd 3.5(单节点)(C模块暂时用不到) ──────────────────────────────────────
   #etcd:
   #  image: bitnami/etcd:3.5
   #  container_name: jm-etcd
