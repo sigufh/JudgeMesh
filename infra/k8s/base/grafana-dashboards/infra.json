@@ -1,0 +1,39 @@
+{
+  "uid": "judgemesh-infra",
+  "title": "JudgeMesh Infra",
+  "tags": ["judgemesh", "infra"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Pod CPU",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"judgemesh.*\",container!=\"\"}[5m])) by (pod)"}]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Pod Memory",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [{"expr": "sum(container_memory_working_set_bytes{namespace=~\"judgemesh.*\",container!=\"\"}) by (pod)"}]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Redis Up",
+      "gridPos": {"x": 0, "y": 8, "w": 6, "h": 4},
+      "targets": [{"expr": "max(redis_up)"}]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "RabbitMQ Up",
+      "gridPos": {"x": 6, "y": 8, "w": 6, "h": 4},
+      "targets": [{"expr": "max(rabbitmq_up)"}]
+    }
+  ]
+}

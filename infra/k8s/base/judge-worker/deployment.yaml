@@ -33,8 +33,10 @@ spec:
             - { containerPort: 8090, name: http }
           env:
             - { name: WORKER_ID, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
-            - { name: RABBITMQ_URL, value: amqp://guest:guest@rabbitmq.judgemesh-infra.svc:5672/ }
+            - { name: RABBITMQ_URL, value: amqp://judgemesh:judgemesh@rabbitmq.judgemesh-infra.svc:5672/ }
             - { name: CALLBACK_BASE, value: http://submit-service.judgemesh.svc:8083 }
+            - { name: JUDGE_ALLOW_UNSANDBOXED, value: "false" }
+            - { name: JUDGE_WORK_DIR, value: /tmp }
           # ⚠️ isolate 需要较高权限;生产可换成 SYS_ADMIN 等细粒度 cap
           securityContext:
             privileged: true
@@ -54,26 +56,3 @@ spec:
   selector: { app: judge-worker }
   ports:
     - { port: 8090, targetPort: 8090, name: http }
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: judge-worker-hpa
-  namespace: judgemesh
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: judge-worker
-  minReplicas: 3
-  maxReplicas: 20
-  metrics:
-    - type: External
-      external:
-        metric:
-          name: rabbitmq_queue_messages_ready
-          selector: { matchLabels: { queue: submit.queue } }
-        target: { type: AverageValue, averageValue: "5" }
-  behavior:
-    scaleDown: { stabilizationWindowSeconds: 300 }
-    scaleUp: { stabilizationWindowSeconds: 30 }

@@ -6,7 +6,7 @@ metadata:
   namespace: chaos-mesh
 spec:
   action: pod-kill
-  mode: one # TODO 配合 lease 注解精确选 leader
+  mode: one
   selector:
     namespaces: [judgemesh]
     labelSelectors:

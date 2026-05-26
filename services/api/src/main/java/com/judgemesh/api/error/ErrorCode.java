@@ -33,6 +33,7 @@ public enum ErrorCode {
     JUDGE_WORKER_UNAVAILABLE("4011", "无可用 worker"),
 
     // contest 5xxx
+    CONTEST_NOT_FOUND("5000", "比赛不存在"),
     CONTEST_NOT_STARTED("5001", "比赛未开始"),
     CONTEST_ENDED("5002", "比赛已结束"),
     CONTEST_NOT_REGISTERED("5003", "未报名");
