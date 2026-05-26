@@ -1,20 +1,19 @@
--- submits_db V1 初始化
--- 对应 docs/design/04-数据模型.md §2.3
+-- submits_db V1 init
 
 CREATE TABLE `submission` (
     `id`               BIGINT       NOT NULL AUTO_INCREMENT,
     `user_id`          BIGINT       NOT NULL,
-    `problem_id`      BIGINT       NOT NULL,
-    `contest_id`       BIGINT COMMENT 'null = 平时提交',
+    `problem_id`       BIGINT       NOT NULL,
+    `contest_id`       BIGINT COMMENT 'null = normal submission',
     `language`         VARCHAR(16)  NOT NULL,
     `code`             MEDIUMTEXT   NOT NULL,
     `code_length`      INT          NOT NULL,
-    `status`           VARCHAR(16)  NOT NULL DEFAULT 'PENDING',
+    `status`           VARCHAR(16)  NOT NULL DEFAULT 'pending',
     `score`            INT          NOT NULL DEFAULT 0,
     `time_used_ms`     INT,
     `memory_used_kb`   INT,
     `judge_message`    TEXT,
-    `judged_by_worker` VARCHAR(64) COMMENT 'Worker pod 名',
+    `judged_by_worker` VARCHAR(64) COMMENT 'Worker pod name',
     `submitted_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `judged_at`        DATETIME,
     PRIMARY KEY (`id`),
@@ -39,13 +38,15 @@ CREATE TABLE `contest` (
 CREATE TABLE `contest_problem` (
     `contest_id` BIGINT NOT NULL,
     `problem_id` BIGINT NOT NULL,
-    `seq`        INT    NOT NULL COMMENT 'A B C D … 的次序',
-    PRIMARY KEY (`contest_id`, `problem_id`)
+    `seq`        INT    NOT NULL COMMENT 'problem order in contest',
+    PRIMARY KEY (`contest_id`, `problem_id`),
+    INDEX `idx_problem` (`problem_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE `contest_register` (
     `contest_id`    BIGINT   NOT NULL,
     `user_id`       BIGINT   NOT NULL,
     `registered_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (`contest_id`, `user_id`)
+    PRIMARY KEY (`contest_id`, `user_id`),
+    INDEX `idx_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

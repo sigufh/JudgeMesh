@@ -28,8 +28,9 @@ spec:
             - { name: MYSQL_HOST, value: mysql.judgemesh-infra.svc }
             - { name: REDIS_HOST, value: redis.judgemesh-infra.svc }
             - { name: RABBITMQ_HOST, value: rabbitmq.judgemesh-infra.svc }
+            - { name: SUBMIT_CALLBACK_URL, value: http://submit-service.judgemesh.svc:8083/api/submit/internal/result }
           envFrom:
-            - secretRef: { name: db-credentials }
+            - secretRef: { name: judgemesh-secrets }
           resources:
             requests: { cpu: 200m, memory: 512Mi }
             limits: { cpu: 1000m, memory: 1Gi }

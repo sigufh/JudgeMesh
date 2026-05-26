@@ -1,0 +1,39 @@
+{
+  "uid": "judgemesh-judge-pipeline",
+  "title": "JudgeMesh Judge Pipeline",
+  "tags": ["judgemesh", "judge"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Worker Up",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(judge_worker_up)"}]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Queue Ready",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(rabbitmq_queue_messages_ready{queue=\"submit.queue\"})"}]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Judge Outcomes",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "sum(rate(judge_worker_tasks_total[5m])) by (status)"}]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Judge Duration p95",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(judge_worker_task_duration_seconds_bucket[5m])) by (le))"}]
+    }
+  ]
+}

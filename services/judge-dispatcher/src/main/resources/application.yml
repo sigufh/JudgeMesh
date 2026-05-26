@@ -12,32 +12,46 @@ spring:
     nacos:
       server-addr: ${NACOS_ADDR:127.0.0.1:8848}
       discovery:
-        namespace: ${NACOS_NAMESPACE:judgemesh}
+        namespace: ${NACOS_NAMESPACE:}
       config:
-        namespace: ${NACOS_NAMESPACE:judgemesh}
+        namespace: ${NACOS_NAMESPACE:}
         file-extension: yaml
   rabbitmq:
     host: ${RABBITMQ_HOST:127.0.0.1}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    username: ${RABBITMQ_USER:judgemesh}
+    password: ${RABBITMQ_PASSWORD:judgemesh}
     listener:
       simple:
         prefetch: 1
+        default-requeue-rejected: true
         retry:
           enabled: true
           max-attempts: 3
 
 judgemesh:
   etcd:
+    enabled: ${ETCD_ENABLED:false}
+    fail-open: ${ETCD_FAIL_OPEN:true}
     endpoints: ${ETCD_ENDPOINTS:http://127.0.0.1:2379}
     leader-key: /judgemesh/dispatcher/leader
     lease-ttl-seconds: 10
   worker:
+    urls: ${JUDGE_WORKER_URLS:http://127.0.0.1:8090}
     timeout-seconds: 30
+    blacklist-seconds: 30
     max-retry: 3
   mq:
     submit-queue: submit.queue
+    retry-queue: submit.retry.queue
+    dead-queue: submit.dlq
+    submit-exchange: judgemesh.exchange
+    submit-routing-key: judge.task
+    retry-routing-key: judge.retry
+    dead-routing-key: judge.dead
+    retry-delay-ms: ${SUBMIT_RETRY_DELAY_MS:5000}
+  dispatcher:
+    listener-enabled: ${DISPATCHER_LISTENER_ENABLED:true}
 
 management:
   endpoints:

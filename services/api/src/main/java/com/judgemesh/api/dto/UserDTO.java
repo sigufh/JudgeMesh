@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -13,7 +15,13 @@ public class UserDTO {
     private Long id;
     private String username;
     private String email;
+    private String nickname;
     private String avatarUrl;
-    /** STUDENT / SETTER / ADMIN */
+    private Integer balance;
+    private Integer totalAc;
+    private Integer totalSubmit;
+    /** Primary role kept for simple clients. */
     private String role;
+    /** STUDENT / SETTER / ADMIN */
+    private List<String> roles;
 }

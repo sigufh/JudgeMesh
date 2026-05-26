@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: judge-dispatcher
+  namespace: judgemesh
+  labels: { app: judge-dispatcher }
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: judge-dispatcher }
+  template:
+    metadata:
+      labels: { app: judge-dispatcher }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8084"
+    spec:
+      containers:
+        - name: app
+          image: docker.io/judgemesh/judgemesh-judge-dispatcher:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 8084, name: http }
+          env:
+            - { name: SPRING_PROFILES_ACTIVE, value: prod }
+            - { name: DISPATCHER_MODE, value: etcd }
+            - { name: NACOS_ADDR, value: nacos.judgemesh-infra.svc:8848 }
+            - { name: RABBITMQ_HOST, value: rabbitmq.judgemesh-infra.svc }
+            - { name: ETCD_ENABLED, value: "true" }
+            - { name: ETCD_FAIL_OPEN, value: "false" }
+            - { name: ETCD_ENDPOINTS, value: http://etcd.judgemesh-infra.svc:2379 }
+            - { name: JUDGE_WORKER_URLS, value: http://judge-worker.judgemesh.svc:8090 }
+          envFrom:
+            - secretRef: { name: judgemesh-secrets }
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits: { cpu: 1000m, memory: 1Gi }
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8084 }
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8084 }
+            initialDelaySeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: judge-dispatcher
+  namespace: judgemesh
+spec:
+  selector: { app: judge-dispatcher }
+  ports:
+    - { port: 8084, targetPort: 8084, name: http }

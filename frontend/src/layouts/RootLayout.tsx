@@ -1,7 +1,8 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
+import { currentUser, logout } from '../api/auth';
 
 const navItems = [
-  { to: '/', label: 'Home', end: true },
+  { to: '/', label: 'Dashboard', end: true },
   { to: '/problems', label: 'Problems' },
   { to: '/contests', label: 'Contests' },
   { to: '/submits', label: 'Submits' },
@@ -10,36 +11,51 @@ const navItems = [
 ];
 
 export default function RootLayout() {
+  const navigate = useNavigate();
+  const user = currentUser();
+
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif' }}>
-      <header
-        style={{
-          padding: '12px 24px',
-          borderBottom: '1px solid #e5e5e5',
-          display: 'flex',
-          gap: '16px',
-          alignItems: 'center',
-        }}
-      >
-        <strong style={{ marginRight: 12 }}>JudgeMesh</strong>
-        <nav style={{ display: 'flex', gap: 12 }}>
+    <div className="shell">
+      <header className="topbar">
+        <Link className="brand" to="/">
+          <strong>JudgeMesh</strong>
+          <span>distributed online judge</span>
+        </Link>
+        <nav className="nav">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
-              style={({ isActive }) => ({
-                textDecoration: 'none',
-                color: isActive ? '#1d4ed8' : '#333',
-                fontWeight: isActive ? 600 : 400,
-              })}
             >
               {item.label}
             </NavLink>
           ))}
         </nav>
+        <div className="user-strip">
+          {user ? (
+            <>
+              <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
+              <span>{user.username}</span>
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => {
+                  logout();
+                  navigate('/login');
+                }}
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <Link className="button" to="/login">
+              Sign in
+            </Link>
+          )}
+        </div>
       </header>
-      <main style={{ padding: '24px' }}>
+      <main className="main">
         <Outlet />
       </main>
     </div>

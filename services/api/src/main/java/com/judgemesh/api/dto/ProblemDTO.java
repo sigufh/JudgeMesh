@@ -19,6 +19,12 @@ public class ProblemDTO {
     private List<String> tags;
     private Integer timeLimitMs;
     private Integer memoryLimitMb;
+    /** testcase manifest URL, submit-service uses it to build JudgeTask */
+    private String testcaseManifestUrl;
+    private Long setterId;
+    private Boolean published;
+    private Integer totalSubmit;
+    private Integer totalAc;
     /** DRAFT / PUBLISHED / OFFLINE */
     private String status;
 }
