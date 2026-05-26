@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: judgemesh-infra
+  labels: { app: minio }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: minio }
+  template:
+    metadata:
+      labels: { app: minio }
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:latest
+          args: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - { name: MINIO_ROOT_USER, value: "minioadmin" }
+            - { name: MINIO_ROOT_PASSWORD, value: "minioadmin" }
+          ports:
+            - { containerPort: 9000, name: api }
+            - { containerPort: 9001, name: console }
+          volumeMounts:
+            - name: minio-data
+              mountPath: /data
+      volumes:
+        - name: minio-data
+          emptyDir: {} # 演示环境使用 emptyDir，生产环境交由队友 E 改为 PVC
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: judgemesh-infra
+spec:
+  selector: { app: minio }
+  ports:
+    - { name: api, port: 9000, targetPort: 9000 }
+    - { name: console, port: 9001, targetPort: 9001 }
+---
+# 自动创建桶的 Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init-buckets
+  namespace: judgemesh-infra
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: minio-mc
+          image: minio/mc:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              sleep 10; # 等待 MinIO 启动
+              mc alias set local http://minio:9000 minioadmin minioadmin;
+              mc mb -p local/testcases || true;
+              mc mb -p local/avatars || true;
+              mc mb -p local/backups || true;
