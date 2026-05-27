@@ -1,138 +1,77 @@
-#!/usr/bin/env python3
-"""Import the JudgeMesh demo problem catalog into problem-service."""
+import requests
+import random
+import io
 
-from __future__ import annotations
+#这个脚本，暂时先搞一点水题，测试流程是否成功运行
 
-import argparse
-import json
-import sys
-import urllib.error
-import urllib.parse
-import urllib.request
-from pathlib import Path
+# Problem-Service 本地地址
+API_URL = "http://localhost:8082/api/problems"
+HEADERS = {"X-User-Id": "99"} # 模拟一个出题人ID
 
+# 给批量生成的占位题准备的词库
+TITLES = ["Two Sum", "Fibonacci Number", "Reverse Linked List", "Binary Search", "Climbing Stairs", "Valid Parentheses"]
+TAGS = ["Math", "Array", "String", "Dynamic Programming", "Graph", "Greedy"]
+DIFFICULTIES = ["EASY", "MEDIUM", "HARD"]
 
-OPS = [
-    ("A+B", "Read two integers and print their sum.", "math", lambda n: ("1 2\n", "3\n")),
-    ("Maximum", "Read three integers and print the maximum.", "branch", lambda n: ("2 7 4\n", "7\n")),
-    ("Reverse", "Read a word and print it reversed.", "string", lambda n: ("mesh\n", "hsem\n")),
-    ("Parity", "Read one integer and print odd or even.", "branch", lambda n: ("7\n", "odd\n")),
-    ("Array Sum", "Read n followed by n integers and print their sum.", "array", lambda n: ("5\n1 2 3 4 5\n", "15\n")),
-]
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--service", default="http://localhost:8082", help="problem-service base URL")
-    parser.add_argument("--dir", default="data/demo-problems", help="directory containing optional problems.json")
-    parser.add_argument("--token", default="", help="optional Bearer token")
-    parser.add_argument("--setter-id", type=int, default=1001)
-    parser.add_argument("--limit", type=int, default=50)
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--skip-existing", action="store_true", default=True)
-    args = parser.parse_args()
-
-    problems = load_catalog(Path(args.dir), args.limit, args.setter_id)
-    existing = existing_titles(args.service, args.token) if args.skip_existing and not args.dry_run else set()
-    imported = 0
-    skipped = 0
-    for problem in problems:
-        if problem["title"] in existing:
-            skipped += 1
-            continue
-        if args.dry_run:
-            print(json.dumps(problem, ensure_ascii=False))
-        else:
-            created = post_json(args.service.rstrip("/") + "/api/problem", problem, args.token)
-            problem_id = (created.get("data") or created).get("id")
-            print(f"imported {problem_id}: {problem['title']}")
-        imported += 1
-    print(f"done imported={imported} skipped={skipped}")
-    return 0
-
-
-def load_catalog(root: Path, limit: int, setter_id: int) -> list[dict]:
-    catalog = root / "problems.json"
-    if catalog.exists():
-        data = json.loads(catalog.read_text(encoding="utf-8"))
-        return data[:limit]
-    return [generated_problem(i, setter_id) for i in range(1, limit + 1)]
-
-
-def generated_problem(i: int, setter_id: int) -> dict:
-    name, desc, tag, case = OPS[(i - 1) % len(OPS)]
-    input_text, output_text = case(i)
-    difficulty = "EASY" if i <= 25 else "MEDIUM" if i <= 45 else "HARD"
-    time_limit = 1000 if difficulty == "EASY" else 1500 if difficulty == "MEDIUM" else 2500
-    return {
-        "title": f"Demo {i:02d} - {name}",
-        "description": f"## {name}\n\n{desc}\n\nThis deterministic seed problem is used for local demos, smoke tests, and load tests.",
-        "timeLimitMs": time_limit,
-        "memoryLimitMb": 256,
-        "difficulty": difficulty,
-        "setterId": setter_id,
-        "published": True,
-        "tags": ["demo", tag, difficulty.lower()],
-        "testCases": [
-            {"caseIndex": 1, "input": input_text, "expectedOutput": output_text, "score": 50},
-            {"caseIndex": 2, "input": variant_input(name), "expectedOutput": variant_output(name), "score": 50},
-        ],
+def create_problem(title, desc, tl, ml, diff, tags):
+    payload = {
+        "title": title,
+        "description": desc,
+        "timeLimitMs": tl,
+        "memoryLimitMb": ml,
+        "difficulty": diff,
+        "tags": tags
     }
+    resp = requests.post(API_URL, json=payload, headers=HEADERS)
+    resp_json = resp.json()
+    if resp_json.get("code") == "0":
+        print(f"✅ 创建成功 [ID: {resp_json['data']}] - {title}")
+        return resp_json["data"]
+    else:
+        print(f"❌ 创建失败: {resp_json}")
+        return None
 
+def upload_testcase(problem_id, case_index, in_content, ans_content):
+    url = f"{API_URL}/{problem_id}/testcases"
 
-def variant_input(name: str) -> str:
-    return {
-        "A+B": "10 32\n",
-        "Maximum": "-1 -5 -3\n",
-        "Reverse": "judge\n",
-        "Parity": "8\n",
-        "Array Sum": "4\n9 8 7 6\n",
-    }[name]
+    # 将字符串转为内存文件流，模拟真实文件上传
+    # 明确指定 Content-Type 为 text/plain
+    files = {
+            'inputFile': (f'{case_index}.in', io.BytesIO(in_content.encode('utf-8')), 'text/plain'),
+            'outputFile': (f'{case_index}.ans', io.BytesIO(ans_content.encode('utf-8')), 'text/plain')
+    }
+    data = {'caseIndex': case_index, 'score': 100 // 2} # 假设每题2个用例，每个50分
 
+    resp = requests.post(url, files=files, data=data, headers=HEADERS)
+    if resp.json().get("code") == "0":
+        print(f"  └── 📁 用例 {case_index} 上传 MinIO 成功")
+    else:
+        print(f"  └── ⚠️ 用例上传失败: {resp.text}")
 
-def variant_output(name: str) -> str:
-    return {
-        "A+B": "42\n",
-        "Maximum": "-1\n",
-        "Reverse": "egduj\n",
-        "Parity": "even\n",
-        "Array Sum": "30\n",
-    }[name]
+def main():
+    print("🚀 开始一键导入 JudgeMesh 测试题库...\n")
 
+    # 1. 创建 1 道“黄金演示题”
+    print("--- 🌟 正在创建黄金演示题 ---")
+    pid_1 = create_problem("A+B Problem", "请计算两个整数 $a$ 和 $b$ 的和。\n\n**输入**：两个空格隔开的整数。\n**输出**：一个整数，即它们的和。", 1000, 256, "EASY", ["Math", "Basic"])
+    if pid_1:
+        upload_testcase(pid_1, 1, "1 2\n", "3\n")
+        upload_testcase(pid_1, 2, "100 200\n", "300\n")
 
-def existing_titles(service: str, token: str) -> set[str]:
-    params = urllib.parse.urlencode({"includeDraft": "true", "size": "500"})
-    try:
-        response = get_json(service.rstrip("/") + "/api/problem/list?" + params, token)
-    except urllib.error.URLError:
-        return set()
-    rows = response.get("data") or response
-    return {row.get("title", "") for row in rows}
+    # 2. 自动生成 49 道占位题凑数
+    print("\n--- 🤖 正在批量生成 49 道占位题 ---")
+    for i in range(2, 51):
+        title = f"{random.choice(TITLES)} {i}"
+        desc = f"这是系统自动生成的第 {i} 道测试题，用于演示分页和大量数据处理。\n\n请使用恰当的算法解决该问题。"
+        tags = random.sample(TAGS, k=random.randint(1, 3))
+        diff = random.choice(DIFFICULTIES)
 
+        pid = create_problem(title, desc, 1000, 256, diff, tags)
+        if pid:
+            # 顺便给水题塞一对假用例
+            upload_testcase(pid, 1, f"fake input {i}\n", f"fake output {i}\n")
 
-def get_json(url: str, token: str) -> dict:
-    request = urllib.request.Request(url, headers=headers(token))
-    with urllib.request.urlopen(request, timeout=10) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
-def post_json(url: str, payload: dict, token: str) -> dict:
-    body = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(url, data=body, method="POST", headers=headers(token))
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        sys.stderr.write(exc.read().decode("utf-8") + "\n")
-        raise
-
-
-def headers(token: str) -> dict[str, str]:
-    result = {"Content-Type": "application/json"}
-    if token:
-        result["Authorization"] = "Bearer " + token
-    return result
-
+    print("\n🎉 题库初始化完毕！共 50 道题目！")
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
