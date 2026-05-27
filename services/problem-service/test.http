@@ -1,0 +1,13 @@
+### 1. 创建题目
+POST http://localhost:8082/api/problems
+Content-Type: application/json
+X-User-Id: 99
+
+{
+  "title": "A+B Problem",
+  "description": "Calculate A + B. \n Input: two integers. \n Output: their sum.",
+  "timeLimitMs": 1000,
+  "memoryLimitMb": 256,
+  "difficulty": "EASY",
+  "tags": ["Math", "Basic"]
+}

@@ -12,12 +12,12 @@ spring:
     nacos:
       server-addr: ${NACOS_ADDR:127.0.0.1:8848}
       discovery:
-        namespace: ${NACOS_NAMESPACE:}
+        namespace: ${NACOS_NAMESPACE:judgemesh}
       config:
-        namespace: ${NACOS_NAMESPACE:}
+        namespace: ${NACOS_NAMESPACE:judgemesh}
         file-extension: yaml
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/problems_db?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=${MYSQL_ALLOW_PUBLIC_KEY_RETRIEVAL:true}&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/problems_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: ${MYSQL_USER:judgemesh}
     password: ${MYSQL_PASSWORD:judgemesh}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -25,11 +25,6 @@ spring:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-  redis:
-    host: ${REDIS_HOST:127.0.0.1}
-    port: ${REDIS_PORT:6379}
-    password: ${REDIS_PASSWORD:}
   flyway:
     locations: classpath:db/migration
     baseline-on-migrate: true
@@ -42,7 +37,6 @@ minio:
   endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
   secret-key: ${MINIO_SECRET_KEY:minioadmin}
-  fail-on-unavailable: ${MINIO_FAIL_ON_UNAVAILABLE:false}
   buckets:
     testcases: testcases
     avatars: avatars
