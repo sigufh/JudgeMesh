@@ -34,7 +34,7 @@
 
         <!-- 插件 -->
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
-        <jib-maven-plugin.version>3.4.4</jib-maven-plugin.version>
+        <jib-maven-plugin.version>3.5.1</jib-maven-plugin.version>
         <docker.registry>docker.io/judgemesh</docker.registry>
     </properties>
 
