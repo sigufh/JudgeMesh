@@ -27,7 +27,7 @@
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <lombok.version>1.18.36</lombok.version>
-        <jjwt.version>0.12.6</jjwt.version>
+        <jjwt.version>0.13.0</jjwt.version>
         <jetcd.version>0.8.3</jetcd.version>
         <minio.version>8.5.13</minio.version>
         <skywalking.version>9.4.0</skywalking.version>
