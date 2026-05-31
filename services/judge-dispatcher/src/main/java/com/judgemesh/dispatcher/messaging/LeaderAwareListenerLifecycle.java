@@ -3,9 +3,11 @@ package com.judgemesh.dispatcher.messaging;
 import com.judgemesh.dispatcher.service.LeaderElectionService;
 import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnBean(RabbitListenerEndpointRegistry.class)
 public class LeaderAwareListenerLifecycle implements SmartInitializingSingleton, LeaderElectionService.LeadershipListener {
     private static final String LISTENER_ID = "judgeTaskListener";
 

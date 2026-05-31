@@ -49,7 +49,6 @@ images:
     newName: docker.io/judgemesh/frontend
     newTag: latest
 
-# dev 环境差异:1 副本、资源减半、本地镜像
 patches:
   - target: { kind: Ingress, name: oj-ingress, namespace: judgemesh }
     patch: |

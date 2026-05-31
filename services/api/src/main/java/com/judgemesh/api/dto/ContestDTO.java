@@ -1,5 +1,6 @@
 package com.judgemesh.api.dto;
 
+import com.judgemesh.api.enumx.ContestStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +20,11 @@ public class ContestDTO {
     private Instant startTime;
     private Instant endTime;
     private Integer freezeBeforeMin;
+    private Long createdBy;
+    private Instant createdAt;
     private List<Long> problemIds;
+    private Long registeredCount;
+    private ContestStatus status;
     private Boolean frozen;
     private Boolean registered;
 }

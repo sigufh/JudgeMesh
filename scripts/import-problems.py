@@ -1,138 +1,107 @@
-#!/usr/bin/env python3
-"""Import the JudgeMesh demo problem catalog into problem-service."""
-
-from __future__ import annotations
-
-import argparse
+import os
 import json
-import sys
-import urllib.error
-import urllib.parse
-import urllib.request
-from pathlib import Path
+import requests
 
+API_URL = "http://localhost:8082/api/problems"
+HEADERS = {"X-User-Id": "99"} # 模拟一个高权限的出题人
 
-OPS = [
-    ("A+B", "Read two integers and print their sum.", "math", lambda n: ("1 2\n", "3\n")),
-    ("Maximum", "Read three integers and print the maximum.", "branch", lambda n: ("2 7 4\n", "7\n")),
-    ("Reverse", "Read a word and print it reversed.", "string", lambda n: ("mesh\n", "hsem\n")),
-    ("Parity", "Read one integer and print odd or even.", "branch", lambda n: ("7\n", "odd\n")),
-    ("Array Sum", "Read n followed by n integers and print their sum.", "array", lambda n: ("5\n1 2 3 4 5\n", "15\n")),
-]
+# 动态定位 demo-problems 目录
+base_dir = os.path.dirname(os.path.abspath(__file__))          # scripts/
+project_root = os.path.dirname(base_dir)                       # JudgeMesh/
+DEMO_DIR = os.path.join(project_root, "data", "demo-problems") # JudgeMesh/data/demo-problems
 
-
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--service", default="http://localhost:8082", help="problem-service base URL")
-    parser.add_argument("--dir", default="data/demo-problems", help="directory containing optional problems.json")
-    parser.add_argument("--token", default="", help="optional Bearer token")
-    parser.add_argument("--setter-id", type=int, default=1001)
-    parser.add_argument("--limit", type=int, default=50)
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--skip-existing", action="store_true", default=True)
-    args = parser.parse_args()
-
-    problems = load_catalog(Path(args.dir), args.limit, args.setter_id)
-    existing = existing_titles(args.service, args.token) if args.skip_existing and not args.dry_run else set()
-    imported = 0
-    skipped = 0
-    for problem in problems:
-        if problem["title"] in existing:
-            skipped += 1
-            continue
-        if args.dry_run:
-            print(json.dumps(problem, ensure_ascii=False))
-        else:
-            created = post_json(args.service.rstrip("/") + "/api/problem", problem, args.token)
-            problem_id = (created.get("data") or created).get("id")
-            print(f"imported {problem_id}: {problem['title']}")
-        imported += 1
-    print(f"done imported={imported} skipped={skipped}")
-    return 0
-
-
-def load_catalog(root: Path, limit: int, setter_id: int) -> list[dict]:
-    catalog = root / "problems.json"
-    if catalog.exists():
-        data = json.loads(catalog.read_text(encoding="utf-8"))
-        return data[:limit]
-    return [generated_problem(i, setter_id) for i in range(1, limit + 1)]
-
-
-def generated_problem(i: int, setter_id: int) -> dict:
-    name, desc, tag, case = OPS[(i - 1) % len(OPS)]
-    input_text, output_text = case(i)
-    difficulty = "EASY" if i <= 25 else "MEDIUM" if i <= 45 else "HARD"
-    time_limit = 1000 if difficulty == "EASY" else 1500 if difficulty == "MEDIUM" else 2500
-    return {
-        "title": f"Demo {i:02d} - {name}",
-        "description": f"## {name}\n\n{desc}\n\nThis deterministic seed problem is used for local demos, smoke tests, and load tests.",
-        "timeLimitMs": time_limit,
-        "memoryLimitMb": 256,
-        "difficulty": difficulty,
-        "setterId": setter_id,
-        "published": True,
-        "tags": ["demo", tag, difficulty.lower()],
-        "testCases": [
-            {"caseIndex": 1, "input": input_text, "expectedOutput": output_text, "score": 50},
-            {"caseIndex": 2, "input": variant_input(name), "expectedOutput": variant_output(name), "score": 50},
-        ],
+def create_problem(title, desc, tl, ml, diff, tags):
+    payload = {
+        "title": title,
+        "description": desc,
+        "timeLimitMs": tl,
+        "memoryLimitMb": ml,
+        "difficulty": diff,
+        "tags": tags
     }
-
-
-def variant_input(name: str) -> str:
-    return {
-        "A+B": "10 32\n",
-        "Maximum": "-1 -5 -3\n",
-        "Reverse": "judge\n",
-        "Parity": "8\n",
-        "Array Sum": "4\n9 8 7 6\n",
-    }[name]
-
-
-def variant_output(name: str) -> str:
-    return {
-        "A+B": "42\n",
-        "Maximum": "-1\n",
-        "Reverse": "egduj\n",
-        "Parity": "even\n",
-        "Array Sum": "30\n",
-    }[name]
-
-
-def existing_titles(service: str, token: str) -> set[str]:
-    params = urllib.parse.urlencode({"includeDraft": "true", "size": "500"})
     try:
-        response = get_json(service.rstrip("/") + "/api/problem/list?" + params, token)
-    except urllib.error.URLError:
-        return set()
-    rows = response.get("data") or response
-    return {row.get("title", "") for row in rows}
+        resp = requests.post(API_URL, json=payload, headers=HEADERS, timeout=5)
+        resp_json = resp.json()
+        if resp.status_code == 200 and resp_json.get("code") == "0":
+            return resp_json["data"]
+        else:
+            print(f"❌ 题目创建失败: {resp.text}")
+            return None
+    except Exception as e:
+        print(f"❌ 请求 API 异常: {e}")
+        return None
 
-
-def get_json(url: str, token: str) -> dict:
-    request = urllib.request.Request(url, headers=headers(token))
-    with urllib.request.urlopen(request, timeout=10) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
-def post_json(url: str, payload: dict, token: str) -> dict:
-    body = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(url, data=body, method="POST", headers=headers(token))
+def upload_testcase(problem_id, case_index, in_path, ans_path, score):
+    url = f"{API_URL}/{problem_id}/testcases"
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        sys.stderr.write(exc.read().decode("utf-8") + "\n")
-        raise
+        # 直接读取本地真实文件并上传
+        with open(in_path, 'rb') as f_in, open(ans_path, 'rb') as f_ans:
+            files = {
+                # 加上 'text/plain' 完美解决之前的 content-type 报错问题
+                'inputFile': (f'{case_index}.in', f_in, 'text/plain'),
+                'outputFile': (f'{case_index}.ans', f_ans, 'text/plain')
+            }
+            data = {'caseIndex': case_index, 'score': score}
+            resp = requests.post(url, files=files, data=data, headers=HEADERS, timeout=10)
 
+            if resp.status_code == 200 and resp.json().get("code") == "0":
+                print(f"    └── 📁 测试用例 {case_index} 上传 MinIO 成功")
+            else:
+                print(f"    └── ⚠️ 用例上传失败: {resp.text}")
+    except Exception as e:
+        print(f"    └── ⚠️ 文件读取或上传异常: {e}")
 
-def headers(token: str) -> dict[str, str]:
-    result = {"Content-Type": "application/json"}
-    if token:
-        result["Authorization"] = "Bearer " + token
-    return result
+def main():
+    print("🚀 开始自动导入本地真实题库...")
+    if not os.path.exists(DEMO_DIR):
+        print(f"⚠️ 找不到目录 {DEMO_DIR}，请确认路径是否正确。")
+        return
 
+    # 按文件夹名字（P1010, P1011...）排序遍历
+    folders = sorted(os.listdir(DEMO_DIR))
+    success_count = 0
+
+    for folder_name in folders:
+        prob_path = os.path.join(DEMO_DIR, folder_name)
+        if not os.path.isdir(prob_path):
+            continue
+
+        meta_path = os.path.join(prob_path, "meta.json")
+        desc_path = os.path.join(prob_path, "description.md")
+
+        # 严格检查文件完整性
+        if not os.path.exists(meta_path) or not os.path.exists(desc_path):
+            continue
+
+        # 加载元数据和 Markdown
+        with open(meta_path, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+        with open(desc_path, 'r', encoding='utf-8') as f:
+            desc = f.read()
+
+        print(f"\n正在导入: {folder_name} - {meta.get('title')}")
+
+        # 1. 写入 MySQL
+        pid = create_problem(meta['title'], desc, meta['timeLimitMs'], meta['memoryLimitMb'], meta['difficulty'], meta['tags'])
+
+        if pid:
+            success_count += 1
+            tc_path = os.path.join(prob_path, "testcases")
+            if os.path.exists(tc_path):
+                # 2. 依次读取用例文件传到 MinIO
+                case_index = 1
+                while True:
+                    in_file = os.path.join(tc_path, f"{case_index}.in")
+                    ans_file = os.path.join(tc_path, f"{case_index}.ans")
+
+                    # 用例断层，说明这个题目的用例读完了
+                    if not os.path.exists(in_file) or not os.path.exists(ans_file):
+                        break
+
+                    upload_testcase(pid, case_index, in_file, ans_file, 10) # 默认每条用例10分
+                    case_index += 1
+
+    print(f"\n🎉 题库自动部署完毕！成功导入 {success_count} 道真实题目。")
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

@@ -57,6 +57,9 @@ judgemesh:
     redis-key-prefix: leaderboard
   submit:
     callback-url: ${SUBMIT_CALLBACK_URL:http://submit-service:8083/api/submit/internal/result}
+    deduct-score-enabled: ${SUBMIT_DEDUCT_SCORE_ENABLED:false}
+    submit-cost: ${SUBMIT_COST:1}
+    code-length-limit: ${SUBMIT_CODE_LENGTH_LIMIT:65536}
   problem:
     base-url: ${PROBLEM_SERVICE_URL:http://127.0.0.1:8082}
 
