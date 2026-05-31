@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seata-server
+  namespace: judgemesh-infra
+  labels: { app: seata-server }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: seata-server }
+  template:
+    metadata:
+      labels: { app: seata-server }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9898"
+    spec:
+      containers:
+        - name: seata-server
+          image: docker.io/apache/seata-server:2.2.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 8091, name: server }
+            - { containerPort: 7091, name: console }
+            - { containerPort: 9898, name: metrics }
+          env:
+            - { name: SEATA_PORT, value: "8091" }
+            - { name: STORE_MODE, value: file }
+            - { name: SEATA_IP, value: seata-server.judgemesh-infra.svc }
+            - { name: SEATA_REGISTRY_TYPE, value: nacos }
+            - { name: SEATA_REGISTRY_NACOS_SERVER_ADDR, value: nacos.judgemesh-infra.svc:8848 }
+            - { name: SEATA_REGISTRY_NACOS_APPLICATION, value: seata-server }
+            - { name: SEATA_REGISTRY_NACOS_GROUP, value: SEATA_GROUP }
+            - { name: SEATA_CONFIG_TYPE, value: nacos }
+            - { name: SEATA_CONFIG_NACOS_SERVER_ADDR, value: nacos.judgemesh-infra.svc:8848 }
+            - { name: SEATA_CONFIG_NACOS_GROUP, value: SEATA_GROUP }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 768Mi }
+          readinessProbe:
+            tcpSocket: { port: 8091 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8091 }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: seata-server
+  namespace: judgemesh-infra
+spec:
+  selector: { app: seata-server }
+  ports:
+    - { port: 8091, targetPort: 8091, name: server }
+    - { port: 7091, targetPort: 7091, name: console }
+    - { port: 9898, targetPort: 9898, name: metrics }

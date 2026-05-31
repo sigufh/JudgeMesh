@@ -1,5 +1,5 @@
 local token = os.getenv("TOKEN") or ""
-local problem_id = os.getenv("PROBLEM_ID") or "1001"
+local problem_id = os.getenv("PROBLEM_ID") or "1"
 local user_id = os.getenv("USER_ID") or "1002"
 
 wrk.method = "POST"

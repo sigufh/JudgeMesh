@@ -16,6 +16,10 @@ spring:
       config:
         namespace: ${NACOS_NAMESPACE:}
         file-extension: yaml
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8858}
+      eager: true
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/submits_db?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=${MYSQL_ALLOW_PUBLIC_KEY_RETRIEVAL:true}&serverTimezone=UTC
     username: ${MYSQL_USER:judgemesh}
@@ -57,9 +61,20 @@ judgemesh:
     base-url: ${PROBLEM_SERVICE_URL:http://127.0.0.1:8082}
 
 seata:
-  enabled: false
+  enabled: ${SEATA_ENABLED:false}
   application-id: ${spring.application.name}
   tx-service-group: judgemesh-tx-group
+  service:
+    vgroup-mapping:
+      judgemesh-tx-group: default
+    grouplist:
+      default: ${SEATA_SERVER_ADDR:127.0.0.1:8091}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
 
 management:
   endpoints:

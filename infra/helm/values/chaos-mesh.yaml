@@ -4,9 +4,20 @@ chaosDaemon:
   socketPath: /run/containerd/containerd.sock
 controllerManager:
   replicaCount: 1
+  enableFilterNamespace: true
+  targetNamespace: judgemesh,judgemesh-infra
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 dashboard:
   create: true
-  serviceType: NodePort
+  serviceType: ClusterIP
   securityMode: false # demo 期免登录;生产必须开
 dnsServer:
   create: true
+chaosDlv:
+  enable: false

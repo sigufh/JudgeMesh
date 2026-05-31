@@ -7,6 +7,8 @@ resources:
   - ../../base/infra-app-secrets
   - ../../base/infra-secrets
   - ../../base/nacos
+  - ../../base/seata-server
+  - ../../base/sentinel-dashboard
   - ../../base/mysql
   - ../../base/minio
   - ../../base/redis
@@ -14,6 +16,7 @@ resources:
   - ../../base/etcd
   - ../../base/ingress-nginx
   - ../../base/grafana-dashboards
+  - ../../base/monitoring
   - ../../base/gateway
   - ../../base/user-service
   - ../../base/problem-service
@@ -160,7 +163,7 @@ patches:
     patch: |
       - op: replace
         path: /spec/replicas
-        value: 1
+        value: 3
       - op: add
         path: /spec/template/spec/nodeSelector
         value: { role: app }

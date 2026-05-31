@@ -1,10 +1,14 @@
-# 实验 1:随机杀 1 个 judge-worker 看自愈
-# 应用:kubectl apply -f infra/chaos/kill-worker.yaml
+# Experiment 1: kill one judge-worker every five minutes.
+# Verify: deployment recreates the pod, oj_worker_up returns to 3, and queued
+# submissions continue to drain.
 apiVersion: chaos-mesh.org/v1alpha1
 kind: PodChaos
 metadata:
   name: kill-worker
   namespace: chaos-mesh
+  labels:
+    app.kubernetes.io/part-of: judgemesh
+    chaos.judgemesh.io/scenario: worker-self-healing
 spec:
   action: pod-kill
   mode: one

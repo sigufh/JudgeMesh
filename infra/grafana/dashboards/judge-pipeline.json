@@ -4,36 +4,84 @@
   "tags": ["judgemesh", "judge"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "panels": [
     {
       "id": 1,
       "type": "stat",
-      "title": "Worker Up",
-      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
-      "targets": [{"expr": "sum(judge_worker_up)"}]
+      "title": "Queue Ready",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "sum(rabbitmq_queue_messages_ready{queue=\"submit.queue\"})"}]
     },
     {
       "id": 2,
       "type": "stat",
-      "title": "Queue Ready",
-      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
-      "targets": [{"expr": "sum(rabbitmq_queue_messages_ready{queue=\"submit.queue\"})"}]
+      "title": "Queue Unacked",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "sum(rabbitmq_queue_messages_unacked{queue=\"submit.queue\"})"}]
     },
     {
       "id": 3,
-      "type": "timeseries",
-      "title": "Judge Outcomes",
-      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
-      "targets": [{"expr": "sum(rate(judge_worker_tasks_total[5m])) by (status)"}]
+      "type": "stat",
+      "title": "Dispatcher Pods Up",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "sum(up{pod=~\"judge-dispatcher.*\"})"}]
     },
     {
       "id": 4,
+      "type": "stat",
+      "title": "Worker Pods Up",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "sum(oj_worker_up)"}]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Judge In-flight",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "sum(oj_judge_inflight)"}]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Callback Errors",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "sum(rate(http_client_requests_seconds_count{application=\"judge-dispatcher\",status=~\"4..|5..\"}[5m]))"}]
+    },
+    {
+      "id": 7,
       "type": "timeseries",
-      "title": "Judge Duration p95",
+      "title": "Submit API Throughput",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "sum(rate(http_server_requests_seconds_count{application=\"submit-service\",uri=~\"/api/submit.*|/api/submits.*\"}[5m])) by (status)"}]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "RabbitMQ submit.queue Depth",
       "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
-      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(judge_worker_task_duration_seconds_bucket[5m])) by (le))"}]
+      "targets": [
+        {"expr": "sum(rabbitmq_queue_messages_ready{queue=\"submit.queue\"})", "legendFormat": "ready"},
+        {"expr": "sum(rabbitmq_queue_messages_unacked{queue=\"submit.queue\"})", "legendFormat": "unacked"}
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Judge Rate by Verdict",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [{"expr": "sum(rate(oj_judge_total[5m])) by (language, verdict)"}]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Judge Duration p95/p99",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(oj_judge_duration_seconds_bucket[5m])) by (le, language))", "legendFormat": "p95 {{language}}"},
+        {"expr": "histogram_quantile(0.99, sum(rate(oj_judge_duration_seconds_bucket[5m])) by (le, language))", "legendFormat": "p99 {{language}}"}
+      ]
     }
   ]
 }

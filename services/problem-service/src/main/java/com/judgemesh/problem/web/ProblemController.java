@@ -5,6 +5,7 @@ import com.judgemesh.api.error.ApiResponse;
 import com.judgemesh.api.message.JudgeTask;
 import com.judgemesh.problem.service.ProblemService;
 import com.judgemesh.problem.service.ProblemService.CreateProblemCommand;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -56,6 +58,17 @@ public class ProblemController {
             @PathVariable Long id,
             @RequestBody CreateProblemCommand command) {
         problemService.update(id, command);
+        return ApiResponse.ok(problemService.manifest(id));
+    }
+
+    @PostMapping(value = "/api/problem/{id}/testcase/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<List<JudgeTask.TestCaseRef>> uploadTestcase(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer caseIndex,
+            @RequestParam(required = false) Integer score,
+            @RequestParam MultipartFile input,
+            @RequestParam MultipartFile expectedOutput) {
+        problemService.uploadTestcase(id, caseIndex, score, input, expectedOutput);
         return ApiResponse.ok(problemService.manifest(id));
     }
 

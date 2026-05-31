@@ -45,9 +45,16 @@ func (r *Runner) Run(ctx context.Context, t Task) {
 		"cases", len(t.Testcases))
 
 	start := time.Now()
+	language := strings.ToLower(strings.TrimSpace(t.Language))
+	if language == "" {
+		language = "unknown"
+	}
+	metrics.JudgeInflight.Inc()
+	defer metrics.JudgeInflight.Dec()
+
 	result := r.execute(ctx, t)
-	metrics.JudgeTasksTotal.WithLabelValues(result.Status).Inc()
-	metrics.JudgeDurationSeconds.Observe(time.Since(start).Seconds())
+	metrics.JudgeTasksTotal.WithLabelValues(language, strings.ToLower(result.Status)).Inc()
+	metrics.JudgeDurationSeconds.WithLabelValues(language).Observe(time.Since(start).Seconds())
 	if err := r.postResult(ctx, t.CallbackURL, result); err != nil {
 		slog.Error("callback failed", "submitId", t.SubmitID, "err", err)
 	}

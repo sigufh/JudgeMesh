@@ -25,6 +25,7 @@ spec:
           env:
             - { name: SPRING_PROFILES_ACTIVE, value: prod }
             - { name: NACOS_ADDR, value: nacos.judgemesh-infra.svc:8848 }
+            - { name: SENTINEL_DASHBOARD, value: sentinel-dashboard.judgemesh-infra.svc:8858 }
             - { name: RABBITMQ_HOST, value: rabbitmq.judgemesh-infra.svc }
             - { name: ETCD_ENABLED, value: "true" }
             - { name: ETCD_FAIL_OPEN, value: "false" }

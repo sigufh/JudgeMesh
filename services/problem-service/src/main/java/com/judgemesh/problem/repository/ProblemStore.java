@@ -3,6 +3,7 @@ package com.judgemesh.problem.repository;
 import com.judgemesh.problem.domain.Problem;
 import com.judgemesh.problem.domain.TestCase;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -26,40 +27,28 @@ public class ProblemStore {
     private final AtomicLong ids = new AtomicLong(1000);
     private final ConcurrentHashMap<Long, Problem> problems = new ConcurrentHashMap<>();
     private final JdbcTemplate jdbcTemplate;
+    private final boolean seedPlaceholderEnabled;
 
-    public ProblemStore(ObjectProvider<JdbcTemplate> jdbcTemplate) {
+    public ProblemStore(
+            ObjectProvider<JdbcTemplate> jdbcTemplate,
+            @Value("${judgemesh.problem.seed-placeholder-enabled:false}") boolean seedPlaceholderEnabled) {
         this.jdbcTemplate = jdbcTemplate.getIfAvailable();
+        this.seedPlaceholderEnabled = seedPlaceholderEnabled;
     }
 
     @PostConstruct
     void seed() {
-        if (findAll().isEmpty()) {
+        if (seedPlaceholderEnabled && findAll().isEmpty()) {
             save(Problem.builder()
-                    .title("A+B Problem")
-                    .description("Read two integers and print their sum.")
+                    .title("Placeholder Problem")
+                    .description("Placeholder only. Replace with imported contest data before demos.")
                     .difficulty("EASY")
                     .setterId(1001L)
-                    .published(true)
+                    .published(false)
                     .timeLimitMs(1000)
                     .memoryLimitMb(256)
-                    .tags(List.of("math", "warmup"))
-                    .testCases(List.of(
-                            TestCase.builder().caseIndex(1).input("1 2\n").expectedOutput("3\n").score(50).build(),
-                            TestCase.builder().caseIndex(2).input("10 -7\n").expectedOutput("3\n").score(50).build()))
-                    .totalSubmit(0)
-                    .totalAc(0)
-                    .build());
-            save(Problem.builder()
-                    .title("Echo Lines")
-                    .description("Read a line and print it unchanged.")
-                    .difficulty("EASY")
-                    .setterId(1001L)
-                    .published(true)
-                    .timeLimitMs(1000)
-                    .memoryLimitMb(128)
-                    .tags(List.of("string"))
-                    .testCases(List.of(
-                            TestCase.builder().caseIndex(1).input("JudgeMesh\n").expectedOutput("JudgeMesh\n").score(100).build()))
+                    .tags(List.of("placeholder"))
+                    .testCases(List.of())
                     .totalSubmit(0)
                     .totalAc(0)
                     .build());

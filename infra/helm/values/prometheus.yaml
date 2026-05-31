@@ -6,7 +6,12 @@ prometheus:
   prometheusSpec:
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
     retention: 7d
+    retentionSize: 18GB
+    externalLabels:
+      system: judgemesh
+      environment: demo
     storageSpec:
       volumeClaimTemplate:
         spec:
@@ -16,25 +21,35 @@ prometheus:
               storage: 20Gi
     resources:
       requests: { cpu: 200m, memory: 512Mi }
-  additionalServiceMonitors:
-    - name: rabbitmq
-      namespaceSelector:
-        matchNames: ["judgemesh-infra"]
-      selector:
-        matchLabels:
-          app: rabbitmq
-      endpoints:
-        - port: prom
-          interval: 15s
-    - name: etcd
-      namespaceSelector:
-        matchNames: ["judgemesh-infra"]
-      selector:
-        matchLabels:
-          app: etcd
-      endpoints:
-        - port: prom
-          interval: 15s
+      limits: { cpu: 1000m, memory: 2Gi }
+additionalPrometheusRulesMap:
+  judgemesh.rules:
+    groups:
+      - name: judgemesh.availability
+        rules:
+          - alert: JudgeMeshTargetDown
+            expr: up{namespace=~"judgemesh|judgemesh-infra"} == 0
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "JudgeMesh target is down"
+              description: "{{ $labels.job }} / {{ $labels.pod }} has not been scraped for 2 minutes."
+          - alert: JudgeWorkerQueueBacklog
+            expr: sum(rabbitmq_queue_messages_ready{queue="submit.queue"}) > 30
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Judge queue backlog is high"
+              description: "submit.queue ready messages stayed above 30 for 5 minutes."
+          - alert: JudgeWorkerUnavailable
+            expr: sum(oj_worker_up) < 1
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "No judge workers are reporting healthy metrics"
 
 grafana:
   enabled: true
@@ -47,13 +62,23 @@ grafana:
       label: grafana_dashboard
     datasources:
       enabled: true
+      defaultDatasourceEnabled: true
+      name: Prometheus
   persistence:
     enabled: true
     size: 10Gi
+  service:
+    type: ClusterIP
 
 alertmanager:
   enabled: true
   config:
+    route:
+      receiver: webhook
+      group_by: ["alertname", "namespace"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
     receivers:
       - name: webhook
         # webhook_configs:

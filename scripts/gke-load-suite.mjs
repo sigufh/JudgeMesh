@@ -1,19 +1,31 @@
 #!/usr/bin/env node
 
 const terminalStatuses = new Set(['AC', 'WA', 'TLE', 'MLE', 'RE', 'CE', 'SE']);
+const defaultReadPaths = [
+  '/api/problem/list',
+  '/api/contest/list',
+  '/api/rank/global',
+  '/api/admin/dispatcher/status',
+];
 
 const defaults = {
   baseUrl: process.env.BASE_URL ?? 'http://127.0.0.1:8080',
-  dispatcherUrl: process.env.DISPATCHER_URL ?? process.env.BASE_URL ?? 'http://127.0.0.1:8080',
+  frontendUrl: process.env.FRONTEND_URL ?? '',
+  mode: process.env.MODE ?? 'full',
   total: numberEnv('TOTAL', 40),
   concurrency: numberEnv('CONCURRENCY', 20),
   users: numberEnv('USERS', 0),
+  readTotal: numberEnv('READ_TOTAL', 120),
+  readConcurrency: numberEnv('READ_CONCURRENCY', 30),
+  readPaths: process.env.READ_PATHS ?? defaultReadPaths.join(','),
   problemId: process.env.PROBLEM_ID ? Number(process.env.PROBLEM_ID) : 0,
   language: process.env.LANGUAGE ?? 'PYTHON',
   password: process.env.PASSWORD ?? 'Load@12345',
   userPrefix: process.env.USER_PREFIX ?? `load-${Date.now()}`,
   pollIntervalMs: numberEnv('POLL_INTERVAL_MS', 500),
   timeoutMs: numberEnv('TIMEOUT_MS', 60_000),
+  observeEveryMs: numberEnv('OBSERVE_EVERY_MS', 5_000),
+  statusPath: process.env.STATUS_PATH ?? '/api/admin/dispatcher/status',
 };
 
 const args = parseArgs(process.argv.slice(2), defaults);
@@ -24,24 +36,76 @@ if (args.help) {
 }
 
 main().catch((error) => {
-  console.error(`\nload demo failed: ${error.message}`);
+  console.error(`\nload suite failed: ${error.stack ?? error.message}`);
   process.exit(1);
 });
 
 async function main() {
   const startedAt = Date.now();
   const users = args.users > 0 ? args.users : args.total;
+  const readPaths = splitCsv(args.readPaths);
   const problemId = args.problemId || await firstProblemId();
   const code = sourceFor(args.language);
 
-  console.log('== JudgeMesh distributed load demo ==');
+  console.log('== JudgeMesh GKE load suite ==');
+  console.log(`mode=${args.mode}`);
   console.log(`baseUrl=${args.baseUrl}`);
-  console.log(`dispatcherUrl=${args.dispatcherUrl}`);
-  console.log(`total=${args.total} concurrency=${args.concurrency} users=${users}`);
+  console.log(`frontendUrl=${args.frontendUrl || '(disabled)'}`);
   console.log(`problemId=${problemId} language=${args.language}`);
+  console.log(`submit total=${args.total} concurrency=${args.concurrency} users=${users}`);
+  console.log(`read total=${args.readTotal} concurrency=${args.readConcurrency}`);
 
   await printDispatcherStatus('before');
 
+  if (args.frontendUrl) {
+    await probeFrontendProxy();
+  }
+
+  if (args.mode === 'read' || args.mode === 'full') {
+    await runReadPhase(readPaths);
+  }
+
+  if (args.mode === 'submit' || args.mode === 'full') {
+    await runSubmitPhase(users, problemId, code);
+  }
+
+  await printDispatcherStatus('after');
+  console.log(`\nall done in ${Date.now() - startedAt} ms`);
+}
+
+async function runReadPhase(readPaths) {
+  console.log('\n== read phase ==');
+  const startedAt = Date.now();
+  const results = await mapLimit(
+    Array.from({ length: args.readTotal }, (_, index) => index),
+    args.readConcurrency,
+    async (index) => {
+      const path = readPaths[index % readPaths.length];
+      const t0 = Date.now();
+      try {
+        await request(path);
+        return {
+          index,
+          kind: path,
+          ok: true,
+          latencyMs: Date.now() - t0,
+        };
+      } catch (error) {
+        return {
+          index,
+          kind: path,
+          ok: false,
+          latencyMs: Date.now() - t0,
+          error: error.message,
+        };
+      }
+    },
+  );
+
+  printPhaseSummary('read', results, Date.now() - startedAt);
+}
+
+async function runSubmitPhase(users, problemId, code) {
   console.log('\n== preparing users ==');
   const identities = await mapLimit(
     Array.from({ length: users }, (_, i) => i + 1),
@@ -56,6 +120,7 @@ async function main() {
     args.concurrency,
     async (i) => submitOne(i, identities[i % identities.length], problemId, code),
   );
+
   const accepted = submitted.filter((item) => item.submitId);
   const rejected = submitted.filter((item) => !item.submitId);
   console.log(`accepted=${accepted.length} rejected=${rejected.length}`);
@@ -64,22 +129,46 @@ async function main() {
   }
 
   console.log('\n== polling judge results ==');
+  const snapshots = [];
   const progress = setInterval(() => printProgress(accepted), 2_000);
-  const results = await mapLimit(
-    accepted,
-    args.concurrency,
-    pollUntilTerminal,
-  );
+  const observer = setInterval(async () => {
+    try {
+      const status = await request(args.statusPath);
+      const normalized = normalizeDispatcherSnapshot(status);
+      snapshots.push({
+        at: new Date().toISOString(),
+        leader: normalized.leader,
+        availableWorkers: normalized.availableWorkers,
+        totalWorkers: normalized.totalWorkers,
+      });
+    } catch (error) {
+      snapshots.push({
+        at: new Date().toISOString(),
+        error: error.message,
+      });
+    }
+  }, args.observeEveryMs);
+
+  const results = await mapLimit(accepted, args.concurrency, pollUntilTerminal);
   clearInterval(progress);
+  clearInterval(observer);
   printProgress(results);
 
-  console.log('\n== summary ==');
-  printSummary(results, rejected, Date.now() - startedAt);
-  await printDispatcherStatus('after');
+  console.log('\n== submit summary ==');
+  printSubmitSummary(results, rejected, snapshots);
+}
 
-  const unfinished = results.filter((item) => !terminalStatuses.has(item.status ?? ''));
-  if (rejected.length > 0 || unfinished.length > 0) {
-    process.exitCode = 1;
+async function probeFrontendProxy() {
+  console.log('\n== frontend proxy check ==');
+  const target = `${trimTrailingSlash(args.frontendUrl)}/api/problem/list`;
+  const t0 = Date.now();
+  try {
+    const payload = await request(target);
+    const problems = unwrap(payload);
+    const count = Array.isArray(problems) ? problems.length : 0;
+    console.log(`frontend proxy ok latencyMs=${Date.now() - t0} problems=${count}`);
+  } catch (error) {
+    console.log(`frontend proxy failed latencyMs=${Date.now() - t0} error=${error.message}`);
   }
 }
 
@@ -171,11 +260,15 @@ async function pollUntilTerminal(item) {
       current = { ...current, error: error.message };
     }
   }
-  return { ...current, status: current.status ?? 'TIMEOUT', error: current.error ?? 'poll timeout' };
+  return {
+    ...current,
+    status: current.status ?? 'TIMEOUT',
+    error: current.error ?? 'poll timeout',
+  };
 }
 
 async function request(pathOrUrl, options = {}) {
-  const url = pathOrUrl.startsWith('http') ? pathOrUrl : `${args.baseUrl}${pathOrUrl}`;
+  const url = pathOrUrl.startsWith('http') ? pathOrUrl : `${trimTrailingSlash(args.baseUrl)}${pathOrUrl}`;
   const headers = { 'content-type': 'application/json', ...(options.headers ?? {}) };
   if (options.token) {
     headers.authorization = `Bearer ${options.token}`;
@@ -188,7 +281,7 @@ async function request(pathOrUrl, options = {}) {
   const text = await response.text();
   const payload = text ? safeJson(text) : null;
   if (!response.ok) {
-    const message = payload?.message ?? text;
+    const message = payload?.message ?? payload?.detail ?? text;
     throw new Error(`${response.status} ${message}`);
   }
   return payload;
@@ -196,7 +289,7 @@ async function request(pathOrUrl, options = {}) {
 
 async function printDispatcherStatus(label) {
   try {
-    const status = await request(`${args.dispatcherUrl}/api/admin/dispatcher/status`);
+    const status = await request(args.statusPath);
     console.log(`\n== dispatcher status (${label}) ==`);
     console.log(JSON.stringify(status, null, 2));
   } catch (error) {
@@ -210,18 +303,41 @@ function printProgress(items) {
   console.log(`progress terminal=${done}/${items.length} statuses=${JSON.stringify(counts)}`);
 }
 
-function printSummary(results, rejected, elapsedMs) {
+function printPhaseSummary(name, results, elapsedMs) {
+  const ok = results.filter((item) => item.ok);
+  const fail = results.filter((item) => !item.ok);
+  const latencies = ok.map((item) => item.latencyMs).sort((a, b) => a - b);
+  console.log(`phase=${name} elapsedMs=${elapsedMs} ok=${ok.length} fail=${fail.length}`);
+  if (latencies.length > 0) {
+    console.log(
+      `phase=${name} latencyMs p50=${percentile(latencies, 50)} p95=${percentile(latencies, 95)} p99=${percentile(latencies, 99)} max=${latencies.at(-1)}`,
+    );
+  }
+  const byPath = countBy(results, (item) => `${item.kind}:${item.ok ? 'ok' : 'fail'}`);
+  console.log(`phase=${name} byPath=${JSON.stringify(byPath)}`);
+  if (fail.length > 0) {
+    printSamples(`${name} samples`, fail);
+  }
+}
+
+function printSubmitSummary(results, rejected, snapshots) {
   const statusCounts = countBy([...results, ...rejected], (item) => item.status ?? 'UNKNOWN');
   const workerCounts = countBy(results, (item) => item.worker ?? 'unassigned');
   const durations = results
     .filter((item) => item.startedAt && item.finishedAt)
     .map((item) => item.finishedAt - item.startedAt)
     .sort((a, b) => a - b);
-  console.log(`elapsedMs=${elapsedMs}`);
+
   console.log(`statusCounts=${JSON.stringify(statusCounts)}`);
   console.log(`workerCounts=${JSON.stringify(workerCounts)}`);
   if (durations.length > 0) {
-    console.log(`latencyMs p50=${percentile(durations, 50)} p95=${percentile(durations, 95)} max=${durations.at(-1)}`);
+    console.log(
+      `latencyMs p50=${percentile(durations, 50)} p95=${percentile(durations, 95)} p99=${percentile(durations, 99)} max=${durations.at(-1)}`,
+    );
+  }
+  if (snapshots.length > 0) {
+    console.log('dispatcherSnapshots=');
+    console.log(JSON.stringify(snapshots, null, 2));
   }
   const failures = [...rejected, ...results.filter((item) => item.status !== 'AC')];
   if (failures.length > 0) {
@@ -232,15 +348,27 @@ function printSummary(results, rejected, elapsedMs) {
 function printSamples(title, items) {
   console.log(`${title}:`);
   for (const item of items.slice(0, 5)) {
-    console.log(JSON.stringify({
-      index: item.index,
-      submitId: item.submitId,
-      status: item.status,
-      worker: item.worker,
-      error: item.error,
-      message: item.message,
-    }));
+    console.log(
+      JSON.stringify({
+        index: item.index,
+        kind: item.kind,
+        submitId: item.submitId,
+        status: item.status,
+        worker: item.worker,
+        latencyMs: item.latencyMs,
+        error: item.error,
+        message: item.message,
+      }),
+    );
   }
+}
+
+function normalizeDispatcherSnapshot(status) {
+  const payload = unwrap(status);
+  const leader = payload?.leader?.leader ?? payload?.leader?.self ?? null;
+  const availableWorkers = Number(payload?.workers?.availableCount ?? 0);
+  const totalWorkers = Number(payload?.workers?.totalCount ?? 0);
+  return { leader, availableWorkers, totalWorkers };
 }
 
 function sourceFor(language) {
@@ -275,7 +403,19 @@ function parseArgs(argv, base) {
     if (value == null) {
       throw new Error(`missing value for --${rawKey}`);
     }
-    if (['total', 'concurrency', 'users', 'problemId', 'pollIntervalMs', 'timeoutMs'].includes(key)) {
+    if (
+      [
+        'total',
+        'concurrency',
+        'users',
+        'problemId',
+        'pollIntervalMs',
+        'timeoutMs',
+        'readTotal',
+        'readConcurrency',
+        'observeEveryMs',
+      ].includes(key)
+    ) {
       parsed[key] = Number(value);
     } else if (key in parsed) {
       parsed[key] = value;
@@ -288,22 +428,33 @@ function parseArgs(argv, base) {
 
 function printHelp() {
   console.log(`Usage:
-  node scripts/demo-distributed-load.mjs [options]
+  node scripts/gke-load-suite.mjs [options]
+
+Modes:
+  --mode full              Read phase + submit phase
+  --mode read              Read endpoints only
+  --mode submit            Submit pipeline only
 
 Options:
-  --base-url URL            Gateway URL, default http://127.0.0.1:8080
-  --dispatcher-url URL      Dispatcher URL, default http://127.0.0.1:8084
-  --total N                 Number of submissions, default 40
-  --concurrency N           Concurrent submission/poll workers, default 20
-  --users N                 Load users, default equals --total to avoid per-user rate limits
-  --problem-id N            Problem id, default first item from /api/problem/list
-  --language NAME           PYTHON, CPP, C, or JAVA, default PYTHON
-  --user-prefix PREFIX      Prefix for generated load users
-  --timeout-ms N            Poll timeout per submission, default 60000
+  --base-url URL           Gateway URL, default http://127.0.0.1:8080
+  --frontend-url URL       Optional frontend URL, used to verify /api proxy
+  --status-path PATH       Dispatcher status path, default /api/admin/dispatcher/status
+  --read-paths CSV         Read endpoints, default ${defaultReadPaths.join(',')}
+  --read-total N           Number of read requests, default 120
+  --read-concurrency N     Read concurrency, default 30
+  --total N                Number of submissions, default 40
+  --concurrency N          Concurrent submit/poll workers, default 20
+  --users N                Load users, default equals --total
+  --problem-id N           Problem id, default first item from /api/problem/list
+  --language NAME          PYTHON, CPP, C, or JAVA, default PYTHON
+  --user-prefix PREFIX     Prefix for generated load users
+  --timeout-ms N           Poll timeout per submission, default 60000
+  --observe-every-ms N     Dispatcher snapshot interval, default 5000
 
 Examples:
-  node scripts/demo-distributed-load.mjs --total 60 --concurrency 30
-  BASE_URL=http://34.80.3.160 TOTAL=100 CONCURRENCY=50 LANGUAGE=CPP node scripts/demo-distributed-load.mjs
+  node scripts/gke-load-suite.mjs --base-url http://34.80.3.160 --mode full
+  node scripts/gke-load-suite.mjs --base-url http://34.80.3.160 --frontend-url http://35.236.151.33 --mode read
+  TOTAL=80 CONCURRENCY=30 node scripts/gke-load-suite.mjs --base-url http://34.80.3.160 --mode submit
 `);
 }
 
@@ -336,6 +487,17 @@ function percentile(sorted, p) {
   return sorted[index];
 }
 
+function splitCsv(value) {
+  return String(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function trimTrailingSlash(value) {
+  return value.endsWith('/') ? value.slice(0, -1) : value;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -343,7 +505,7 @@ function sleep(ms) {
 async function mapLimit(items, limit, fn) {
   const results = new Array(items.length);
   let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length || 1)) }, async () => {
     while (next < items.length) {
       const index = next++;
       results[index] = await fn(items[index], index);

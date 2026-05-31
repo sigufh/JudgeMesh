@@ -1,6 +1,7 @@
 package com.judgemesh.submit.service;
 
 import com.judgemesh.api.client.ProblemClient;
+import com.judgemesh.api.client.UserClient;
 import com.judgemesh.api.dto.ProblemDTO;
 import com.judgemesh.api.dto.SubmitDTO;
 import com.judgemesh.api.message.JudgeResult;
@@ -21,6 +22,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import io.seata.spring.annotation.GlobalTransactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -34,6 +36,7 @@ public class SubmissionService {
     private final ContestService contestService;
     private final RankingService rankingService;
     private final ObjectProvider<ProblemClient> problemClient;
+    private final ObjectProvider<UserClient> userClient;
     private final ObjectProvider<RabbitTemplate> rabbitTemplate;
     private final ObjectProvider<SimpMessagingTemplate> messagingTemplate;
     private final Map<Long, Instant> lastSubmitAt = new ConcurrentHashMap<>();
@@ -48,6 +51,7 @@ public class SubmissionService {
             ContestService contestService,
             RankingService rankingService,
             ObjectProvider<ProblemClient> problemClient,
+            ObjectProvider<UserClient> userClient,
             ObjectProvider<RabbitTemplate> rabbitTemplate,
             ObjectProvider<SimpMessagingTemplate> messagingTemplate,
             @Value("${judgemesh.mq.submit-exchange:judgemesh.exchange}") String exchange,
@@ -58,6 +62,7 @@ public class SubmissionService {
         this.contestService = contestService;
         this.rankingService = rankingService;
         this.problemClient = problemClient;
+        this.userClient = userClient;
         this.rabbitTemplate = rabbitTemplate;
         this.messagingTemplate = messagingTemplate;
         this.exchange = exchange;
@@ -66,6 +71,7 @@ public class SubmissionService {
         this.problemBaseUrl = problemBaseUrl;
     }
 
+    @GlobalTransactional(name = "submit-service-submit", rollbackFor = Exception.class)
     public SubmitDTO submit(SubmitCommand command) {
         Instant now = Instant.now();
         Instant previous = lastSubmitAt.put(command.userId(), now);
@@ -93,6 +99,7 @@ public class SubmissionService {
                 .score(0)
                 .submittedAt(now)
                 .build();
+        deductBalanceIfPossible(command.userId());
         store.save(submission);
         publishTask(submission);
         notifySubmission(submission);
@@ -190,6 +197,13 @@ public class SubmissionService {
             }
         } catch (AmqpException ex) {
             submission.setJudgeMessage("RabbitMQ unavailable; task stored as PENDING: " + ex.getMessage());
+        }
+    }
+
+    private void deductBalanceIfPossible(Long userId) {
+        UserClient client = userClient.getIfAvailable();
+        if (client != null) {
+            client.deductBalance(userId, 1);
         }
     }
 

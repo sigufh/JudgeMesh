@@ -24,6 +24,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Repository
 public class ContestStore {
+    private static final String DEMO_CONTEST_TITLE = "JudgeMesh Demo Contest";
+    private static final List<Long> DEMO_PROBLEM_IDS = List.of(1L, 2L);
+
     private final AtomicLong ids = new AtomicLong(2000);
     private final ConcurrentHashMap<Long, Contest> contests = new ConcurrentHashMap<>();
     private final JdbcTemplate jdbcTemplate;
@@ -37,15 +40,17 @@ public class ContestStore {
         if (findAll().isEmpty()) {
             Instant now = Instant.now();
             save(Contest.builder()
-                    .title("JudgeMesh Demo Contest")
+                    .title(DEMO_CONTEST_TITLE)
                     .description("Local smoke contest for the distributed judge flow.")
                     .startTime(now.minus(1, ChronoUnit.HOURS))
                     .endTime(now.plus(3, ChronoUnit.HOURS))
                     .freezeBeforeMin(30)
                     .createdBy(1001L)
-                    .problemIds(List.of(1001L, 1002L))
+                    .problemIds(DEMO_PROBLEM_IDS)
                     .build());
+            return;
         }
+        reconcileDemoContest();
     }
 
     public Contest save(Contest contest) {
@@ -67,6 +72,15 @@ public class ContestStore {
         return Optional.ofNullable(contests.get(id));
     }
 
+    public boolean deleteById(Long id) {
+        if (jdbcTemplate != null) {
+            jdbcTemplate.update("delete from contest_register where contest_id = ?", id);
+            jdbcTemplate.update("delete from contest_problem where contest_id = ?", id);
+            return jdbcTemplate.update("delete from contest where id = ?", id) > 0;
+        }
+        return contests.remove(id) != null;
+    }
+
     public List<Contest> findAll() {
         if (jdbcTemplate != null) {
             return jdbcTemplate.query("select * from contest order by start_time desc", mapper());
@@ -74,6 +88,25 @@ public class ContestStore {
         return contests.values().stream()
                 .sorted(Comparator.comparing(Contest::getStartTime).reversed())
                 .toList();
+    }
+
+    private void reconcileDemoContest() {
+        findAll().stream()
+                .filter(contest -> DEMO_CONTEST_TITLE.equals(contest.getTitle()))
+                .filter(this::needsDemoProblemFix)
+                .findFirst()
+                .ifPresent(contest -> {
+                    contest.setProblemIds(DEMO_PROBLEM_IDS);
+                    save(contest);
+                });
+    }
+
+    private boolean needsDemoProblemFix(Contest contest) {
+        List<Long> problemIds = contest.getProblemIds();
+        return problemIds == null
+                || problemIds.isEmpty()
+                || problemIds.contains(1001L)
+                || problemIds.contains(1002L);
     }
 
     private Contest saveJdbc(Contest contest) {

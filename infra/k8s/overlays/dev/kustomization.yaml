@@ -6,6 +6,8 @@ resources:
   - ../../base/app-secrets
   - ../../base/infra-secrets
   - ../../base/nacos
+  - ../../base/seata-server
+  - ../../base/sentinel-dashboard
   - ../../base/mysql
   - ../../base/minio
   - ../../base/redis
@@ -14,6 +16,7 @@ resources:
   - ../../base/cert-manager
   - ../../base/ingress-nginx
   - ../../base/grafana-dashboards
+  - ../../base/monitoring
   - ../../base/gateway
   - ../../base/user-service
   - ../../base/problem-service

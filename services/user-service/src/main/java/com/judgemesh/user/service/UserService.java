@@ -44,7 +44,7 @@ public class UserService {
         EnumSet<UserRole> roles = EnumSet.of(UserRole.STUDENT);
         if (requestedRole != null && !requestedRole.isBlank()) {
             UserRole role = UserRole.valueOf(requestedRole.trim().toUpperCase(Locale.ROOT));
-            if (role == UserRole.SETTER || role == UserRole.ADMIN) {
+            if (role == UserRole.SETTER) {
                 roles.add(role);
             }
         }
@@ -58,6 +58,51 @@ public class UserService {
                 .totalSubmit(0)
                 .roles(roles)
                 .build();
+        return store.save(user);
+    }
+
+    public UserAccount updateProfile(Long userId, String nickname, String avatarUrl) {
+        UserAccount user = get(userId);
+        if (nickname != null && !nickname.isBlank()) {
+            user.setNickname(nickname.trim());
+        }
+        if (avatarUrl != null) {
+            user.setAvatarUrl(avatarUrl.isBlank() ? null : avatarUrl.trim());
+        }
+        return store.save(user);
+    }
+
+    public UserAccount updateAvatar(Long userId, String avatarUrl) {
+        if (avatarUrl == null || avatarUrl.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "avatarUrl is required");
+        }
+        return updateProfile(userId, null, avatarUrl);
+    }
+
+    public void changePassword(Long userId, String oldPassword, String newPassword) {
+        if (newPassword == null || newPassword.length() < 8 || newPassword.length() > 128) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "new password length must be 8..128");
+        }
+        UserAccount user = get(userId);
+        if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "old password mismatch");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        store.save(user);
+    }
+
+    public UserAccount updateRoles(Long userId, Set<String> requestedRoles) {
+        if (requestedRoles == null || requestedRoles.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "roles are required");
+        }
+        EnumSet<UserRole> roles = requestedRoles.stream()
+                .map(role -> UserRole.valueOf(role.trim().toUpperCase(Locale.ROOT)))
+                .collect(() -> EnumSet.noneOf(UserRole.class), EnumSet::add, EnumSet::addAll);
+        if (roles.isEmpty()) {
+            roles.add(UserRole.STUDENT);
+        }
+        UserAccount user = get(userId);
+        user.setRoles(roles);
         return store.save(user);
     }
 

@@ -1,42 +1,82 @@
-# JudgeMesh 指标与日志规范
+# JudgeMesh Metrics, Logs, and Traces Conventions
 
-本文档是 B/C/D 各服务接入 Prometheus、Grafana、SkyWalking、Loki 的统一规范。目标不是解释概念，而是直接约束“指标叫什么、标签怎么打、日志怎么写、哪些必须接”。
+This document is the contract for service owners integrating with Prometheus,
+Grafana, SkyWalking, and Loki. It defines metric names, allowed labels, log
+fields, trace propagation, and acceptance criteria.
 
-## 1. 基本约定
+## 1. Global Rules
 
-- 指标前缀统一为 `oj_`。
-- 指标名统一使用英文小写加下划线。
-- 标签只允许低基数维度: `service`、`language`、`status`、`queue`、`worker`、`result`、`endpoint`。
-- 禁止将 `userId`、`submissionId`、`traceId`、IP、题目标题等高基数字段作为指标标签。
-- Java 服务统一暴露 `/actuator/prometheus`。
-- Go worker 统一暴露 `/metrics`。
-- 所有生产 Deployment 必须带 scrape annotation、readinessProbe、livenessProbe。
+- Metric names owned by JudgeMesh must use the `oj_` prefix.
+- Metric names use lower-case English words separated by `_`.
+- Java services expose Prometheus metrics at `/actuator/prometheus`.
+- The Go judge worker exposes Prometheus metrics at `/metrics`.
+- All production Deployments must have readiness probes, liveness probes, and
+  Prometheus scrape coverage through PodMonitor or ServiceMonitor.
+- Do not put high-cardinality values in metric labels.
 
-## 2. 指标类型约束
+Allowed low-cardinality labels:
 
-- Counter: 只表示累计事件数，如请求总量、重试总量、失败总量。
-- Gauge: 只表示瞬时值，如排队数、当前并发、leader 状态。
-- Timer/Histogram: 只表示时延或体积分布，单位统一使用 seconds 或 bytes。
-- 百分比不要直接做 Gauge；应先上报分子/分母，再在 PromQL 中计算。
+- `service`
+- `application`
+- `language`
+- `status`
+- `queue`
+- `worker`
+- `result`
+- `verdict`
+- `endpoint`
+- `uri`
+- `stage`
+- `reason`
 
-## 3. 各服务必备指标
+Forbidden metric labels:
+
+- `userId`
+- `submissionId`
+- `traceId`
+- IP address
+- raw URL
+- source code
+- problem title
+- request body
+
+## 2. Metric Types
+
+- Use Counter for accumulated events such as requests, submissions, retries,
+  failures, and judge outcomes.
+- Use Gauge for instantaneous state such as queue depth, in-flight work, worker
+  availability, and leader state.
+- Use Histogram or Timer for latency distributions. Time units must be seconds.
+- Use bytes for memory or payload sizes.
+- Do not publish a percentage as a Gauge when it can be computed from numerator
+  and denominator counters in PromQL.
+
+## 3. Required Service Metrics
 
 ### gateway
 
-- `oj_http_server_requests_total{service="gateway",endpoint,status}`
-- `oj_http_server_request_duration_seconds{service="gateway",endpoint}`
+- `http_server_requests_seconds_count{application="gateway",uri,status}`
+- `http_server_requests_seconds_bucket{application="gateway",uri,status,le}`
+- `spring_cloud_gateway_requests_seconds_count{routeId,outcome}`
 - `oj_gateway_auth_fail_total{reason}`
 - `oj_gateway_rate_limit_total{route,result}`
 
-### user-service / problem-service
+### user-service
 
-- `oj_http_server_requests_total{service,endpoint,status}`
-- `oj_http_server_request_duration_seconds{service,endpoint}`
-- `oj_dependency_call_duration_seconds{service,target,operation}`
-- `oj_business_error_total{service,code}`
+- `http_server_requests_seconds_count{application="user-service",uri,status}`
+- `http_server_requests_seconds_bucket{application="user-service",uri,status,le}`
+- `oj_business_error_total{service="user-service",code}`
+
+### problem-service
+
+- `http_server_requests_seconds_count{application="problem-service",uri,status}`
+- `http_server_requests_seconds_bucket{application="problem-service",uri,status,le}`
+- `oj_dependency_call_duration_seconds{service="problem-service",target,operation}`
+- `oj_business_error_total{service="problem-service",code}`
 
 ### submit-service
 
+- `http_server_requests_seconds_count{application="submit-service",uri,status}`
 - `oj_submission_total{language,status}`
 - `oj_submission_pending{queue}`
 - `oj_submit_pipeline_duration_seconds{stage}`
@@ -45,6 +85,7 @@
 
 ### judge-dispatcher
 
+- `http_server_requests_seconds_count{application="judge-dispatcher",uri,status}`
 - `oj_dispatch_total{worker,result}`
 - `oj_dispatch_retry_total{reason}`
 - `oj_dispatch_worker_blacklist_total{worker,reason}`
@@ -53,15 +94,26 @@
 
 ### judge-worker
 
+- `oj_worker_up`
 - `oj_judge_total{language,verdict}`
-- `oj_judge_duration_seconds{language}`
+- `oj_judge_duration_seconds_bucket{language,le}`
 - `oj_judge_inflight`
 - `oj_judge_sandbox_fail_total{stage}`
-- `oj_worker_pull_artifact_duration_seconds{artifact}`
+- `oj_worker_pull_artifact_duration_seconds_bucket{artifact,le}`
 
-## 4. 命名与标签示例
+## 4. Middleware Metrics
 
-Java:
+Prometheus must scrape these middleware targets in the Kubernetes demo:
+
+- RabbitMQ: `rabbitmq_queue_messages_ready`, `rabbitmq_queue_messages_unacked`,
+  `rabbitmq_up`
+- Redis exporter: `redis_up`, `redis_memory_used_bytes`
+- etcd: `etcd_server_has_leader`, `etcd_server_leader_changes_seen_total`
+- Nacos: `/nacos/actuator/prometheus`
+- Kubernetes: `kube_pod_container_status_restarts_total`,
+  `container_cpu_usage_seconds_total`, `container_memory_working_set_bytes`
+
+## 5. Java Example
 
 ```java
 Counter.builder("oj_submission_total")
@@ -71,7 +123,24 @@ Counter.builder("oj_submission_total")
     .increment();
 ```
 
-Go:
+```java
+Timer.builder("oj_submit_pipeline_duration_seconds")
+    .tag("stage", "publish_mq")
+    .register(registry)
+    .record(duration);
+```
+
+## 6. Go Example
+
+```go
+promauto.NewCounterVec(
+    prometheus.CounterOpts{
+        Name: "oj_judge_total",
+        Help: "Judge tasks handled by language and final verdict.",
+    },
+    []string{"language", "verdict"},
+)
+```
 
 ```go
 promauto.NewHistogramVec(
@@ -83,21 +152,47 @@ promauto.NewHistogramVec(
 )
 ```
 
-约束:
+## 7. Label Value Rules
 
-- `status` / `result` / `verdict` 使用稳定枚举值，例如 `accepted`、`failed`、`timeout`。
-- `endpoint` 记录模板路由，如 `/api/submit/{id}`，不要记录原始 URL。
-- `worker` 允许记录 pod 名，因为 judge-worker 副本数有限。
+- `status`, `result`, and `verdict` must use stable enum values such as `ac`,
+  `wa`, `tle`, `re`, `ce`, `se`, `success`, `failed`, and `timeout`.
+- `endpoint` or `uri` must be a route template such as `/api/submit/{id}`, not a
+  raw URL with IDs.
+- `worker` may be the pod name because judge-worker replica count is bounded.
+- Normalize label values to lower case unless they come from Spring/Micrometer.
 
-## 5. 日志规范
+## 8. Log Rules
 
-- 日志统一输出 JSON。
-- 必备字段: `timestamp`、`level`、`service`、`traceId`。
-- 条件字段: `userId`、`submissionId`、`contestId` 仅在业务上下文存在时填写。
-- 禁止打印密码、JWT、数据库 DSN、AK/SK、完整请求体。
-- 单条日志建议控制在 8KB 内。
+All services should write structured JSON logs.
 
-建议结构:
+Required fields:
+
+- `timestamp`
+- `level`
+- `service`
+- `traceId`
+- `message`
+
+Conditional fields:
+
+- `userId`
+- `submissionId`
+- `contestId`
+- `problemId`
+- `workerId`
+
+Never log:
+
+- password
+- JWT
+- database DSN with credentials
+- access key or secret key
+- full request body
+- source code
+
+Keep a single log event below 8 KB unless explicitly debugging locally.
+
+Example:
 
 ```json
 {
@@ -110,25 +205,38 @@ promauto.NewHistogramVec(
 }
 ```
 
-## 6. Trace 规范
+## 9. Trace Rules
 
-- 所有 HTTP 入站请求必须保留或生成 `traceId`。
-- 网关、submit-service、judge-dispatcher、回写接口必须能在日志里打印同一条链路的 `traceId`。
-- 异步 MQ 场景至少要把 `traceId` 放进 message header 或业务 payload 扩展字段，避免链路断裂。
-- Java 服务默认走 SkyWalking agent；Go worker 至少保证日志里可关联上游 traceId。
+- Every inbound HTTP request must preserve an existing trace ID or generate one.
+- gateway, submit-service, judge-dispatcher, judge-worker, and callback handling
+  must log the same trace ID for a single submission path.
+- MQ messages must carry trace context in headers or payload extension fields.
+- Java services should run with the SkyWalking agent in cluster demos.
+- Go worker must at least include trace context in logs and callback metadata.
 
-## 7. Grafana 看板口径
+## 10. Grafana Dashboard Acceptance
 
-- `oj-live.json`: QPS、AC 率、判题 P95/P99、当前 worker 数、当前 leader、队列积压。
-- `judge-pipeline.json`: submit -> MQ -> dispatcher -> worker -> callback 各阶段吞吐/时延。
-- `governance.json`: 网关请求、错误率、熔断/限流、配置中心与注册中心可用性。
-- `infra.json`: 节点资源、Pod 重启、PVC 使用率、RabbitMQ/Redis/etcd/Nacos 健康度。
+The four required dashboards are:
 
-## 8. 接入验收
+- `oj-live.json`: QPS, submit rate, accepted ratio, judge p95/p99, workers,
+  current in-flight work, queue backlog, and error rate.
+- `judge-pipeline.json`: submit API, RabbitMQ queue, dispatcher availability,
+  worker availability, judge verdicts, and judge latency.
+- `governance.json`: HTTP errors, route latency, gateway route metrics, Nacos,
+  etcd, dispatcher health, JVM heap, and restarts.
+- `infra.json`: node and pod resources, PVC usage, restarts, pending pods,
+  RabbitMQ, Redis, and etcd health.
 
-每个服务合并前至少满足:
+Dashboards are loaded by ConfigMaps with label `grafana_dashboard=1`.
 
-- `/actuator/prometheus` 或 `/metrics` 可被 Prometheus 抓取。
-- 至少 1 个业务 Counter + 1 个时延 Histogram/Timer 已接入。
-- 日志里能搜到 `service` 和 `traceId`。
-- 大盘里出现该服务对应的数据曲线，不接受“代码已埋点但 Prometheus 没抓到”的状态。
+## 11. Pull Request Acceptance
+
+A service change that claims observability support must satisfy all checks:
+
+- `/actuator/prometheus` or `/metrics` can be scraped by Prometheus.
+- At least one business Counter and one latency Histogram/Timer are present.
+- Logs include `service` and `traceId`.
+- No high-cardinality labels are introduced.
+- The relevant dashboard panel shows data after a demo smoke run.
+- Empty dashboards or "metrics exist in code but Prometheus cannot scrape them"
+  are not accepted.

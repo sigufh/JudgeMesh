@@ -4,7 +4,7 @@
   "tags": ["judgemesh", "infra"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "panels": [
     {
@@ -12,28 +12,87 @@
       "type": "timeseries",
       "title": "Pod CPU",
       "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
-      "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"judgemesh.*\",container!=\"\"}[5m])) by (pod)"}]
+      "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"judgemesh|judgemesh-infra\",container!=\"\",image!=\"\"}[5m])) by (pod)"}]
     },
     {
       "id": 2,
       "type": "timeseries",
       "title": "Pod Memory",
       "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
-      "targets": [{"expr": "sum(container_memory_working_set_bytes{namespace=~\"judgemesh.*\",container!=\"\"}) by (pod)"}]
+      "targets": [{"expr": "sum(container_memory_working_set_bytes{namespace=~\"judgemesh|judgemesh-infra\",container!=\"\",image!=\"\"}) by (pod)"}]
     },
     {
       "id": 3,
       "type": "stat",
-      "title": "Redis Up",
-      "gridPos": {"x": 0, "y": 8, "w": 6, "h": 4},
-      "targets": [{"expr": "max(redis_up)"}]
+      "title": "RabbitMQ Up",
+      "gridPos": {"x": 0, "y": 8, "w": 4, "h": 4},
+      "targets": [{"expr": "max(rabbitmq_up)"}]
     },
     {
       "id": 4,
       "type": "stat",
-      "title": "RabbitMQ Up",
-      "gridPos": {"x": 6, "y": 8, "w": 6, "h": 4},
-      "targets": [{"expr": "max(rabbitmq_up)"}]
+      "title": "Redis Up",
+      "gridPos": {"x": 4, "y": 8, "w": 4, "h": 4},
+      "targets": [{"expr": "max(redis_up)"}]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "etcd Leader Changes",
+      "gridPos": {"x": 8, "y": 8, "w": 4, "h": 4},
+      "targets": [{"expr": "sum(increase(etcd_server_leader_changes_seen_total[15m]))"}]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "PVC Usage Max",
+      "gridPos": {"x": 12, "y": 8, "w": 4, "h": 4},
+      "targets": [{"expr": "max(kubelet_volume_stats_used_bytes{namespace=~\"judgemesh|judgemesh-infra\"} / kubelet_volume_stats_capacity_bytes{namespace=~\"judgemesh|judgemesh-infra\"})"}]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Pod Restarts 15m",
+      "gridPos": {"x": 16, "y": 8, "w": 4, "h": 4},
+      "targets": [{"expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"judgemesh|judgemesh-infra\"}[15m]))"}]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Pending Pods",
+      "gridPos": {"x": 20, "y": 8, "w": 4, "h": 4},
+      "targets": [{"expr": "sum(kube_pod_status_phase{namespace=~\"judgemesh|judgemesh-infra\",phase=\"Pending\"})"}]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "RabbitMQ Queue Depth",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(rabbitmq_queue_messages_ready) by (queue)", "legendFormat": "ready {{queue}}"},
+        {"expr": "sum(rabbitmq_queue_messages_unacked) by (queue)", "legendFormat": "unacked {{queue}}"}
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Redis Memory",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [{"expr": "redis_memory_used_bytes"}]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Node CPU",
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+      "targets": [{"expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) by (instance)"}]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Node Memory Available",
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+      "targets": [{"expr": "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes"}]
     }
   ]
 }

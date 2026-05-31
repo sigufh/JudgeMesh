@@ -1,26 +1,43 @@
 package com.judgemesh.problem.service;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.judgemesh.api.dto.ProblemDTO;
 import com.judgemesh.api.message.JudgeTask;
 import com.judgemesh.problem.domain.Problem;
 import com.judgemesh.problem.domain.TestCase;
 import com.judgemesh.problem.repository.ProblemStore;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 public class ProblemService {
     private final ProblemStore store;
     private final TestcaseObjectStorage objectStorage;
+    private final Cache<Long, Optional<Problem>> problemCache;
 
-    public ProblemService(ProblemStore store, TestcaseObjectStorage objectStorage) {
+    public ProblemService(
+            ProblemStore store,
+            TestcaseObjectStorage objectStorage,
+            @Value("${judgemesh.problem.cache.max-size:2000}") long cacheMaxSize,
+            @Value("${judgemesh.problem.cache.detail-ttl-seconds:300}") long detailTtlSeconds) {
         this.store = store;
         this.objectStorage = objectStorage;
+        this.problemCache = Caffeine.newBuilder()
+                .maximumSize(Math.max(100, cacheMaxSize))
+                .expireAfterWrite(Duration.ofSeconds(Math.max(30, detailTtlSeconds)))
+                .build();
     }
 
     public List<ProblemDTO> list(String q, String tag, String difficulty, Boolean includeDraft, int page, int size) {
@@ -44,7 +61,7 @@ public class ProblemService {
     }
 
     public Problem get(Long id) {
-        return store.findById(id)
+        return problemCache.get(id, store::findById)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "problem not found"));
     }
 
@@ -61,12 +78,14 @@ public class ProblemService {
                 .testCases(List.of())
                 .build();
         Problem saved = store.save(problem);
+        problemCache.invalidate(saved.getId());
         if (command.testCases() != null) {
             Long problemId = saved.getId();
             saved.setTestCases(command.testCases().stream()
                     .map(tc -> toCase(problemId, tc))
                     .toList());
             saved = store.save(saved);
+            problemCache.invalidate(saved.getId());
         }
         return saved;
     }
@@ -97,7 +116,36 @@ public class ProblemService {
         if (command.testCases() != null) {
             problem.setTestCases(command.testCases().stream().map(tc -> toCase(id, tc)).toList());
         }
-        return store.save(problem);
+        Problem saved = store.save(problem);
+        problemCache.invalidate(id);
+        return saved;
+    }
+
+    public Problem uploadTestcase(Long id, Integer caseIndex, Integer score, MultipartFile input, MultipartFile expectedOutput) {
+        if (input == null || input.isEmpty() || expectedOutput == null || expectedOutput.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "input and expectedOutput files are required");
+        }
+        int resolvedIndex = caseIndex == null ? nextCaseIndex(id) : caseIndex;
+        Problem problem = get(id);
+        try {
+            TestCase testcase = TestCase.builder()
+                    .caseIndex(resolvedIndex)
+                    .input(objectStorage.putStream(id, resolvedIndex, "in", input.getInputStream(),
+                            input.getSize(), input.getContentType()))
+                    .expectedOutput(objectStorage.putStream(id, resolvedIndex, "ans", expectedOutput.getInputStream(),
+                            expectedOutput.getSize(), expectedOutput.getContentType()))
+                    .score(score == null ? 10 : score)
+                    .build();
+            List<TestCase> cases = new ArrayList<>(problem.getTestCases());
+            cases.removeIf(existing -> existing.getCaseIndex().equals(resolvedIndex));
+            cases.add(testcase);
+            problem.setTestCases(cases);
+            Problem saved = store.save(problem);
+            problemCache.invalidate(id);
+            return saved;
+        } catch (IOException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "cannot read testcase files", ex);
+        }
     }
 
     public List<JudgeTask.TestCaseRef> manifest(Long id) {
@@ -136,6 +184,14 @@ public class ProblemService {
                 .expectedOutput(objectStorage.putText(problemId, input.caseIndex(), "ans", input.expectedOutput() == null ? "" : input.expectedOutput()))
                 .score(input.score() == null ? 10 : input.score())
                 .build();
+    }
+
+    private int nextCaseIndex(Long id) {
+        return get(id).getTestCases().stream()
+                .map(TestCase::getCaseIndex)
+                .filter(index -> index != null)
+                .max(Integer::compareTo)
+                .orElse(0) + 1;
     }
 
     private static String defaultString(String value, String fallback) {
