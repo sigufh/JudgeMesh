@@ -86,6 +86,7 @@ public class SubmissionService {
         this.codeLengthLimit = codeLengthLimit;
     }
 
+    @GlobalTransactional(name = "submit-create-api", rollbackFor = Exception.class)
     public SubmissionDTO submit(Long userId, SubmitCreateRequest request) {
         SubmitCommand command = new SubmitCommand(
                 userId,
@@ -250,6 +251,13 @@ public class SubmissionService {
             }
         } catch (AmqpException ex) {
             submission.setJudgeMessage("RabbitMQ unavailable; task stored as PENDING: " + ex.getMessage());
+        }
+    }
+
+    private void deductBalanceIfPossible(Long userId) {
+        UserClient client = userClient.getIfAvailable();
+        if (client != null) {
+            client.deductBalance(userId, 1);
         }
     }
 

@@ -14,7 +14,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +33,7 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
     private final String leaderKey;
     private final long leaseTtlSeconds;
     private final ScheduledExecutorService executor;
+    private final List<LeadershipListener> listeners = new CopyOnWriteArrayList<>();
 
     private volatile String mode = "local-single-leader";
     private volatile Instant lastChangedAt = Instant.now();
@@ -68,16 +71,22 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
         if (!etcdEnabled) {
             leader.set(true);
             mode = "local-single-leader";
+            notifyListeners();
             return;
         }
         leader.set(false);
         mode = failOpen ? "etcd-pending-fail-open" : "etcd-pending";
+        notifyListeners();
         executor.scheduleWithFixedDelay(this::ensureElection, 0,
                 Math.max(1, leaseTtlSeconds / 3), TimeUnit.SECONDS);
     }
 
     public boolean isLeader() {
         return leader.get();
+    }
+
+    public void addListener(LeadershipListener listener) {
+        listeners.add(listener);
     }
 
     public Map<String, Object> status() {
@@ -98,6 +107,7 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
         leader.set(false);
         mode = etcdEnabled ? "etcd-chaos-paused" : "local-chaos-paused";
         lastChangedAt = Instant.now();
+        notifyListeners();
     }
 
     public void becomeLeader() {
@@ -106,6 +116,7 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
             leader.set(true);
             mode = "local-single-leader";
             lastChangedAt = Instant.now();
+            notifyListeners();
             return;
         }
         ensureElection();
@@ -137,6 +148,7 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
                         leader.set(true);
                         mode = "etcd-lease";
                         lastChangedAt = Instant.now();
+                        notifyListeners();
                     });
         } catch (Exception ignored) {
             lockInFlight.set(false);
@@ -167,6 +179,7 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
         }
         resetLease();
         lastChangedAt = Instant.now();
+        notifyListeners();
     }
 
     private void unlock() {
@@ -211,6 +224,14 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
         }
     }
 
+    private void notifyListeners() {
+        boolean currentLeader = leader.get();
+        String currentMode = mode;
+        for (LeadershipListener listener : listeners) {
+            listener.onLeadershipChanged(currentLeader, currentMode);
+        }
+    }
+
     private ByteSequence bs(String value) {
         return ByteSequence.from(value, StandardCharsets.UTF_8);
     }
@@ -227,6 +248,7 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
             mode = failOpen ? "local-fallback-etcd-keepalive-lost" : "etcd-keepalive-lost";
             resetLease();
             lastChangedAt = Instant.now();
+            notifyListeners();
         }
 
         @Override
@@ -235,6 +257,11 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
             mode = failOpen ? "local-fallback-etcd-keepalive-completed" : "etcd-keepalive-completed";
             resetLease();
             lastChangedAt = Instant.now();
+            notifyListeners();
         }
+    }
+
+    public interface LeadershipListener {
+        void onLeadershipChanged(boolean leader, String mode);
     }
 }

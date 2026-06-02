@@ -3,6 +3,7 @@ package com.judgemesh.dispatcher.messaging;
 import com.judgemesh.api.message.JudgeTask;
 import com.judgemesh.dispatcher.service.DispatcherService.DispatchResult;
 import com.judgemesh.dispatcher.service.DispatcherService;
+import org.springframework.amqp.ImmediateRequeueAmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -34,11 +35,17 @@ public class JudgeTaskListener {
         this.maxRetry = maxRetry;
     }
 
-    @RabbitListener(queues = "${judgemesh.mq.submit-queue:submit.queue}")
+    @RabbitListener(
+            id = "judgeTaskListener",
+            autoStartup = "false",
+            queues = "${judgemesh.mq.submit-queue:submit.queue}")
     public void onTask(JudgeTask task) {
         DispatchResult result = dispatcherService.dispatch(task);
         if (result.ok()) {
             return;
+        }
+        if ("not leader".equals(result.message())) {
+            throw new ImmediateRequeueAmqpException("dispatcher follower requeue");
         }
         int retryCount = task.getRetryCount() == null ? 0 : task.getRetryCount();
         if (retryCount < maxRetry) {

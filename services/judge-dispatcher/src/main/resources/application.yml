@@ -16,6 +16,10 @@ spring:
       config:
         namespace: ${NACOS_NAMESPACE:}
         file-extension: yaml
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8858}
+      eager: true
   rabbitmq:
     host: ${RABBITMQ_HOST:127.0.0.1}
     port: ${RABBITMQ_PORT:5672}
@@ -52,6 +56,12 @@ judgemesh:
     retry-delay-ms: ${SUBMIT_RETRY_DELAY_MS:5000}
   dispatcher:
     listener-enabled: ${DISPATCHER_LISTENER_ENABLED:true}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
 
 management:
   endpoints:

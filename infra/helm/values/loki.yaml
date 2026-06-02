@@ -1,24 +1,51 @@
 # helm install loki grafana/loki-stack -n judgemesh-observe --create-namespace -f infra/helm/values/loki.yaml
 loki:
   enabled: true
+  isDefault: false
   persistence:
     enabled: true
     size: 10Gi
   config:
+    limits_config:
+      retention_period: 168h
     table_manager:
       retention_deletes_enabled: true
       retention_period: 168h
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
 promtail:
   enabled: true
   config:
     snippets:
+      pipelineStages:
+        - cri: {}
+        - json:
+            expressions:
+              level: level
+              service: service
+              traceId: traceId
+            source: message
+        - labels:
+            level:
+            service:
       extraScrapeConfigs: |
-        - job_name: ingress-nginx
+        - job_name: judgemesh-pods
           kubernetes_sd_configs:
             - role: pod
           relabel_configs:
             - source_labels: [__meta_kubernetes_namespace]
-              regex: ingress-nginx
+              regex: judgemesh|judgemesh-infra|ingress-nginx
               action: keep
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+            - source_labels: [__meta_kubernetes_pod_container_name]
+              target_label: container
 grafana:
   enabled: false # 用 kube-prometheus-stack 里那个

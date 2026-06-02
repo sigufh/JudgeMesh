@@ -16,6 +16,10 @@ spring:
       config:
         namespace: ${NACOS_NAMESPACE:}
         file-extension: yaml
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8858}
+      eager: true
     gateway:
       server:
         webflux:
@@ -48,6 +52,14 @@ spring:
 judgemesh:
   jwt:
     secret: ${JWT_SECRET:local-dev-secret-change-me-32-bytes}
+  gateway:
+    submit-limit-per-minute: ${SUBMIT_LIMIT_PER_MINUTE:30}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
 
 management:
   endpoints:

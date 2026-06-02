@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.concurrent.TimeUnit;
@@ -36,17 +37,28 @@ public class TestcaseObjectStorage {
 
     public String putText(Long problemId, Integer caseIndex, String suffix, String content) {
         String key = "problem-" + problemId + "/" + caseIndex + "." + suffix;
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        return putBytes(key, bytes, "text/plain; charset=utf-8", () -> new ByteArrayInputStream(bytes), content);
+    }
+
+    public String putStream(Long problemId, Integer caseIndex, String suffix, InputStream stream, long size, String contentType) {
+        String key = "problem-" + problemId + "/" + caseIndex + "." + suffix;
+        byte[] bytes;
+        try {
+            bytes = stream.readAllBytes();
+        } catch (Exception ex) {
+            throw new IllegalStateException("cannot read testcase stream: " + key, ex);
+        }
         if (minioClient == null) {
-            return dataUrl(content);
+            return dataUrl(new String(bytes, StandardCharsets.UTF_8));
         }
         try {
             ensureBucket();
-            byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
             minioClient.putObject(PutObjectArgs.builder()
                     .bucket(bucket)
                     .object(key)
                     .stream(new ByteArrayInputStream(bytes), bytes.length, -1)
-                    .contentType("text/plain; charset=utf-8")
+                    .contentType(contentType == null || contentType.isBlank() ? "text/plain" : contentType)
                     .build());
             return key;
         } catch (Exception ex) {
@@ -54,7 +66,29 @@ public class TestcaseObjectStorage {
                 throw new IllegalStateException("MinIO testcase write failed: " + key, ex);
             }
             log.warn("MinIO unavailable, falling back to data URL for {}", key, ex);
-            return dataUrl(content);
+            return dataUrl(new String(bytes, StandardCharsets.UTF_8));
+        }
+    }
+
+    private String putBytes(String key, byte[] bytes, String contentType, StreamSupplier streamSupplier, String fallback) {
+        if (minioClient == null) {
+            return dataUrl(fallback);
+        }
+        try {
+            ensureBucket();
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(key)
+                    .stream(streamSupplier.open(), bytes.length, -1)
+                    .contentType(contentType)
+                    .build());
+            return key;
+        } catch (Exception ex) {
+            if (failOnUnavailable) {
+                throw new IllegalStateException("MinIO testcase write failed: " + key, ex);
+            }
+            log.warn("MinIO unavailable, falling back to data URL for {}", key, ex);
+            return dataUrl(fallback);
         }
     }
 
@@ -98,5 +132,10 @@ public class TestcaseObjectStorage {
     private static String dataUrl(String value) {
         String encoded = Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
         return "data:text/plain;base64," + encoded;
+    }
+
+    @FunctionalInterface
+    private interface StreamSupplier {
+        InputStream open();
     }
 }

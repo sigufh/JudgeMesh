@@ -47,7 +47,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 func (s *Server) judge(w http.ResponseWriter, r *http.Request) {
 	var task judge.Task
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
-		metrics.JudgeTasksTotal.WithLabelValues("BAD_REQUEST").Inc()
+		metrics.JudgeTasksTotal.WithLabelValues("unknown", "bad_request").Inc()
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad json: " + err.Error()})
 		return
 	}

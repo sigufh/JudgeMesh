@@ -2,6 +2,8 @@
 oap:
   storageType: elasticsearch
   replicas: 1
+  image:
+    tag: 9.7.0
   envoy:
     metricsServiceEnabled: false
   service:
@@ -9,10 +11,36 @@ oap:
       enabled: true
     otlp:
       enabled: true
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
 ui:
+  replicas: 1
   service:
-    type: NodePort
+    type: ClusterIP
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 elasticsearch:
   enabled: true
   minimumMasterNodes: 1
   replicas: 1
+  volumeClaimTemplate:
+    resources:
+      requests:
+        storage: 20Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi

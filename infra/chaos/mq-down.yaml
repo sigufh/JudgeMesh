@@ -1,15 +1,28 @@
-# 实验 3:RabbitMQ 网络分区,验证提交链路降级 / 重试
+# Experiment 3: partition RabbitMQ from submit-service and judge-dispatcher.
+# Verify: submissions are retried/degraded, queue alerts fire, and recovery
+# happens after the 60 second partition.
 apiVersion: chaos-mesh.org/v1alpha1
 kind: NetworkChaos
 metadata:
   name: rabbitmq-partition
   namespace: chaos-mesh
+  labels:
+    app.kubernetes.io/part-of: judgemesh
+    chaos.judgemesh.io/scenario: mq-partition
 spec:
   action: partition
   mode: all
   selector:
-    namespaces: [judgemesh-infra]
-    labelSelectors:
-      app: rabbitmq
+    namespaces: [judgemesh]
+    expressionSelectors:
+      - key: app
+        operator: In
+        values: [submit-service, judge-dispatcher]
+  target:
+    mode: all
+    selector:
+      namespaces: [judgemesh-infra]
+      labelSelectors:
+        app: rabbitmq
   direction: both
   duration: "60s"
