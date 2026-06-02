@@ -1,4 +1,45 @@
-# JudgeMesh keeps Grafana under kube-prometheus-stack.
-# This file exists so automation and reviewers have a stable values path.
-enabled: false
+# Standalone Grafana values are kept for reviewers who do not install
+# kube-prometheus-stack. The normal demo path uses Grafana bundled in
+# infra/helm/values/prometheus.yaml.
+
+replicas: 1
+
 adminPassword: changeme
+
+persistence:
+  enabled: true
+  size: 10Gi
+
+service:
+  type: ClusterIP
+
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    searchNamespace: ALL
+  datasources:
+    enabled: true
+    defaultDatasourceEnabled: false
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prom-kube-prometheus-stack-prometheus.judgemesh-observe.svc:9090
+        isDefault: true
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki.judgemesh-observe.svc:3100
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

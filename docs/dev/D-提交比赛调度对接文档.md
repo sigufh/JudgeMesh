@@ -1,7 +1,7 @@
 # D 模块对接文档: submit-service + judge-dispatcher
 
-维护人: `@Nier291`  
-适用对象: 前端、judge-worker、gateway、user-service、problem-service、基础设施/压测同学  
+维护人: `@Nier291`
+适用对象: 前端、judge-worker、gateway、user-service、problem-service、基础设施/压测同学
 代码范围: `services/submit-service/`, `services/judge-dispatcher/`, `services/api/.../message/`
 
 ## 1. 服务边界

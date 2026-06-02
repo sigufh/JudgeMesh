@@ -25,6 +25,7 @@ spec:
           env:
             - { name: SPRING_PROFILES_ACTIVE, value: prod }
             - { name: NACOS_ADDR, value: nacos.judgemesh-infra.svc:8848 }
+            - { name: SENTINEL_DASHBOARD, value: sentinel-dashboard.judgemesh-infra.svc:8858 }
             - { name: MYSQL_HOST, value: mysql.judgemesh-infra.svc }
             - { name: REDIS_HOST, value: redis.judgemesh-infra.svc }
             - { name: MINIO_ENDPOINT, value: http://minio.judgemesh-infra.svc:9000 }

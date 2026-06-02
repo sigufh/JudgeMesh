@@ -6,12 +6,15 @@ resources:
   - ../../base/app-secrets
   - ../../base/infra-secrets
   - ../../base/nacos
+  - ../../base/seata-server
+  - ../../base/sentinel-dashboard
   - ../../base/mysql
   - ../../base/minio
   - ../../base/redis
   - ../../base/rabbitmq
   - ../../base/etcd
   - ../../base/ingress-nginx
+  - ../../base/monitoring
   - ../../base/gateway
   - ../../base/user-service
   - ../../base/problem-service

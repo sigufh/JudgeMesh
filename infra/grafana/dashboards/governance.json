@@ -4,7 +4,7 @@
   "tags": ["judgemesh", "governance"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "panels": [
     {
@@ -17,16 +17,51 @@
     {
       "id": 2,
       "type": "timeseries",
-      "title": "Circuit Breaker Calls",
+      "title": "HTTP p95 by Route",
       "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
-      "targets": [{"expr": "sum(rate(resilience4j_circuitbreaker_calls_seconds_count[5m])) by (name, kind)"}]
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application=~\"gateway|user-service|problem-service|submit-service|judge-dispatcher\",uri!~\"/actuator.*\"}[5m])) by (le, application, uri))"}]
     },
     {
       "id": 3,
       "type": "stat",
-      "title": "Dispatcher Leaders",
-      "gridPos": {"x": 0, "y": 8, "w": 6, "h": 4},
-      "targets": [{"expr": "sum(up{job=~\".*judge-dispatcher.*\"})"}]
+      "title": "Nacos Up",
+      "gridPos": {"x": 0, "y": 8, "w": 4, "h": 4},
+      "targets": [{"expr": "max(up{pod=~\"nacos.*\"})"}]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "etcd Members Up",
+      "gridPos": {"x": 4, "y": 8, "w": 4, "h": 4},
+      "targets": [{"expr": "sum(up{pod=~\"etcd.*\"})"}]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Dispatcher Pods Up",
+      "gridPos": {"x": 8, "y": 8, "w": 4, "h": 4},
+      "targets": [{"expr": "sum(up{pod=~\"judge-dispatcher.*\"})"}]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Spring Cloud Gateway Requests",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [{"expr": "sum(rate(spring_cloud_gateway_requests_seconds_count[5m])) by (routeId, outcome)"}]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "JVM Memory Used",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "targets": [{"expr": "sum(jvm_memory_used_bytes{application=~\"gateway|user-service|problem-service|submit-service|judge-dispatcher\",area=\"heap\"}) by (application)"}]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Process Restarts",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "targets": [{"expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"judgemesh|judgemesh-infra\"}[15m])) by (pod, container)"}]
     }
   ]
 }

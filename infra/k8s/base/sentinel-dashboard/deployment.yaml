@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-dashboard
+  namespace: judgemesh-infra
+  labels: { app: sentinel-dashboard }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: sentinel-dashboard }
+  template:
+    metadata:
+      labels: { app: sentinel-dashboard }
+    spec:
+      containers:
+        - name: sentinel-dashboard
+          image: docker.io/bladex/sentinel-dashboard:1.8.8
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 8858, name: http }
+          env:
+            - { name: SERVER_PORT, value: "8858" }
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          readinessProbe:
+            httpGet: { path: /, port: 8858 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: 8858 }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-dashboard
+  namespace: judgemesh-infra
+spec:
+  selector: { app: sentinel-dashboard }
+  ports:
+    - { port: 8858, targetPort: 8858, name: http }

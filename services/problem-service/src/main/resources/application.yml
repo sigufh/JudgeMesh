@@ -16,6 +16,10 @@ spring:
       config:
         namespace: ${NACOS_NAMESPACE:judgemesh}
         file-extension: yaml
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8858}
+      eager: true
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/problems_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: ${MYSQL_USER:judgemesh}
@@ -41,6 +45,19 @@ minio:
     testcases: testcases
     avatars: avatars
     backups: backups
+
+judgemesh:
+  problem:
+    seed-placeholder-enabled: ${PROBLEM_SEED_PLACEHOLDER_ENABLED:false}
+    cache:
+      max-size: ${PROBLEM_CACHE_MAX_SIZE:2000}
+      detail-ttl-seconds: ${PROBLEM_CACHE_DETAIL_TTL_SECONDS:300}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
 
 management:
   endpoints:

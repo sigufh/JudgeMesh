@@ -11,6 +11,8 @@ on:
         options:
           - dev
           - prod
+          - mvp-ha-4node
+          - gke-4node-demo
   push:
     branches: [main]
     paths:
@@ -148,6 +150,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-push
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'prod' }}
+    permissions:
+      contents: read
     env:
       DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'prod' }}
     steps:
@@ -163,6 +167,7 @@ jobs:
         env:
           KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
         run: |
+          test -n "$KUBECONFIG_B64"
           mkdir -p "$HOME/.kube"
           echo "$KUBECONFIG_B64" | base64 --decode > "$HOME/.kube/config"
 
@@ -178,5 +183,19 @@ jobs:
             docker.io/judgemesh/judge-worker:latest=${REGISTRY}/${IMAGE_NAMESPACE}/judge-worker:${IMAGE_TAG} \
             docker.io/judgemesh/frontend:latest=${REGISTRY}/${IMAGE_NAMESPACE}/frontend:${IMAGE_TAG}
 
+      - name: Validate rendered manifests
+        run: |
+          kustomize build infra/k8s/overlays/${DEPLOY_ENV} > /tmp/judgemesh-rendered.yaml
+          kubectl apply --dry-run=client --validate=false -f /tmp/judgemesh-rendered.yaml
+
       - name: Deploy overlay
         run: kubectl apply -k infra/k8s/overlays/${{ env.DEPLOY_ENV }}
+
+      - name: Wait for core rollouts
+        run: |
+          kubectl -n judgemesh rollout status deploy/gateway --timeout=180s
+          kubectl -n judgemesh rollout status deploy/user-service --timeout=180s
+          kubectl -n judgemesh rollout status deploy/problem-service --timeout=180s
+          kubectl -n judgemesh rollout status deploy/submit-service --timeout=180s
+          kubectl -n judgemesh rollout status deploy/judge-dispatcher --timeout=180s
+          kubectl -n judgemesh rollout status deploy/judge-worker --timeout=180s

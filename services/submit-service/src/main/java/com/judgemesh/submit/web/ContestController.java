@@ -4,10 +4,14 @@ import com.judgemesh.api.dto.ContestDTO;
 import com.judgemesh.api.dto.RankEntryDTO;
 import com.judgemesh.api.error.ApiResponse;
 import com.judgemesh.submit.service.ContestService;
+import com.judgemesh.submit.service.ContestService.ContestCommand;
 import com.judgemesh.submit.service.RankingService;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -32,6 +36,22 @@ public class ContestController {
             @RequestParam(required = false) Long userId) {
         Long resolvedUserId = headerUserId == null ? userId : headerUserId;
         return ApiResponse.ok(contestService.list(resolvedUserId));
+    }
+
+    @PostMapping("/api/contest")
+    public ApiResponse<ContestDTO> create(@RequestBody ContestCommand command) {
+        return ApiResponse.ok(contestService.create(command));
+    }
+
+    @PutMapping("/api/contest/{id}")
+    public ApiResponse<ContestDTO> update(@PathVariable Long id, @RequestBody ContestCommand command) {
+        return ApiResponse.ok(contestService.update(id, command));
+    }
+
+    @DeleteMapping("/api/contest/{id}")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        contestService.delete(id);
+        return ApiResponse.ok(null);
     }
 
     @PostMapping("/api/contest/{id}/register")

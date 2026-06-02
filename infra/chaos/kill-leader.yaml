@@ -1,9 +1,14 @@
-# 实验 2:杀掉当前 dispatcher leader,验证 etcd 选主切换
+# Experiment 2: kill one dispatcher pod to exercise leader re-election.
+# If the random victim is not the leader, reapply or run during a demo loop.
+# Verify: exactly one dispatcher consumes tasks and leader metrics/logs recover.
 apiVersion: chaos-mesh.org/v1alpha1
 kind: PodChaos
 metadata:
   name: kill-dispatcher-leader
   namespace: chaos-mesh
+  labels:
+    app.kubernetes.io/part-of: judgemesh
+    chaos.judgemesh.io/scenario: dispatcher-leader-failover
 spec:
   action: pod-kill
   mode: one

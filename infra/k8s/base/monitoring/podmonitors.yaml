@@ -1,0 +1,126 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: judgemesh-java-services
+  namespace: judgemesh-observe
+  labels:
+    app.kubernetes.io/part-of: judgemesh
+    release: prom
+spec:
+  namespaceSelector:
+    matchNames:
+      - judgemesh
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - gateway
+          - user-service
+          - problem-service
+          - submit-service
+          - judge-dispatcher
+  podMetricsEndpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+      relabelings:
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_label_app]
+          targetLabel: service
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: judgemesh-worker
+  namespace: judgemesh-observe
+  labels:
+    app.kubernetes.io/part-of: judgemesh
+    release: prom
+spec:
+  namespaceSelector:
+    matchNames:
+      - judgemesh
+  selector:
+    matchLabels:
+      app: judge-worker
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 10s
+      scrapeTimeout: 5s
+      relabelings:
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: worker
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_label_app]
+          targetLabel: service
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: judgemesh-rabbitmq-etcd
+  namespace: judgemesh-observe
+  labels:
+    app.kubernetes.io/part-of: judgemesh
+    release: prom
+spec:
+  namespaceSelector:
+    matchNames:
+      - judgemesh-infra
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - rabbitmq
+          - etcd
+  podMetricsEndpoints:
+    - port: prom
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: judgemesh-redis
+  namespace: judgemesh-observe
+  labels:
+    app.kubernetes.io/part-of: judgemesh
+    release: prom
+spec:
+  namespaceSelector:
+    matchNames:
+      - judgemesh-infra
+  selector:
+    matchLabels:
+      app: redis
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: judgemesh-nacos
+  namespace: judgemesh-observe
+  labels:
+    app.kubernetes.io/part-of: judgemesh
+    release: prom
+spec:
+  namespaceSelector:
+    matchNames:
+      - judgemesh-infra
+  selector:
+    matchLabels:
+      app: nacos
+  podMetricsEndpoints:
+    - port: http
+      path: /nacos/actuator/prometheus
+      interval: 30s
+      scrapeTimeout: 10s
