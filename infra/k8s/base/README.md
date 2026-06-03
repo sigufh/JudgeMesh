@@ -34,4 +34,4 @@
 注意:
 
 - `app-secrets` 与 `infra-secrets` 里的 `change-me` 仅用于模板占位，实际部署前必须改成外部注入或 CI secret 渲染。
-- `prod` overlay 默认包含 KEDA `ScaledObject`，依赖集群已安装 KEDA CRD/Operator。
+- `prod`、`mvp-ha-4node`、`gke-4node-demo` overlays 包含 KEDA `ScaledObject`，依赖集群已安装 KEDA CRD/Operator。

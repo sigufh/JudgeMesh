@@ -15,6 +15,7 @@ resources:
   - ../../base/rabbitmq
   - ../../base/etcd
   - ../../base/ingress-nginx
+  - ../../base/keda
   - ../../base/grafana-dashboards
   - ../../base/monitoring
   - ../../base/gateway
@@ -142,7 +143,10 @@ patches:
     patch: |
       - op: replace
         path: /spec/replicas
-        value: 3
+        value: 6
+      - op: replace
+        path: /spec/template/spec/containers/0/env/3/value
+        value: "true"
       - op: replace
         path: /spec/template/spec/affinity
         value:
@@ -154,11 +158,30 @@ patches:
                       operator: In
                       values: [judge]
           podAntiAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchLabels:
-                    app: judge-worker
-                topologyKey: kubernetes.io/hostname
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app: judge-worker
+                  topologyKey: kubernetes.io/hostname
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                app: judge-worker
+  - target: { kind: ScaledObject, name: judge-worker-queue-scaler }
+    patch: |
+      - op: replace
+        path: /spec/minReplicaCount
+        value: 6
+      - op: replace
+        path: /spec/maxReplicaCount
+        value: 12
   - target: { kind: StatefulSet, name: etcd }
     patch: |
       - op: replace

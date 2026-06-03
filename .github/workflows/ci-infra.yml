@@ -40,6 +40,7 @@ jobs:
         run: |
           kubectl kustomize infra/k8s/overlays/dev >/tmp/judgemesh-dev.yaml
           kubectl kustomize infra/k8s/overlays/prod >/tmp/judgemesh-prod.yaml
+          kubectl kustomize infra/k8s/overlays/final-defense >/tmp/judgemesh-final-defense.yaml
           kubectl kustomize infra/k8s/overlays/mvp-ha-4node >/tmp/judgemesh-mvp-ha-4node.yaml
           kubectl kustomize infra/k8s/overlays/gke-4node-demo >/tmp/judgemesh-gke-4node-demo.yaml
 
@@ -49,12 +50,14 @@ jobs:
           helm repo add grafana https://grafana.github.io/helm-charts
           helm repo add apache https://apache.jfrog.io/artifactory/skywalking-helm
           helm repo add chaos-mesh https://charts.chaos-mesh.org
+          helm repo add kedacore https://kedacore.github.io/charts
           helm repo update
           helm template prom prometheus-community/kube-prometheus-stack -n judgemesh-observe -f infra/helm/values/prometheus.yaml >/tmp/prometheus.yaml
           helm template grafana grafana/grafana -n judgemesh-observe -f infra/helm/values/grafana.yaml >/tmp/grafana.yaml
           helm template loki grafana/loki-stack -n judgemesh-observe -f infra/helm/values/loki.yaml >/tmp/loki.yaml
           helm template skywalking apache/skywalking -n judgemesh-observe -f infra/helm/values/skywalking.yaml >/tmp/skywalking.yaml
           helm template chaos-mesh chaos-mesh/chaos-mesh -n chaos-mesh -f infra/helm/values/chaos-mesh.yaml >/tmp/chaos-mesh.yaml
+          helm template keda kedacore/keda -n keda -f infra/helm/values/keda.yaml >/tmp/keda.yaml
 
       - name: Validate ChaosMesh manifests parse as YAML
         run: |
