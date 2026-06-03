@@ -42,6 +42,8 @@ judgemesh:
     lease-ttl-seconds: 10
   worker:
     urls: ${JUDGE_WORKER_URLS:http://127.0.0.1:8090}
+    discovery-enabled: ${JUDGE_WORKER_DISCOVERY_ENABLED:true}
+    discovery-refresh-seconds: ${JUDGE_WORKER_DISCOVERY_REFRESH_SECONDS:15}
     timeout-seconds: 30
     blacklist-seconds: 30
     max-retry: 3

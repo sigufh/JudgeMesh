@@ -12,6 +12,7 @@ type Task struct {
 	TestcaseManifestURL string      `json:"testcase_manifest_url"`
 	Testcases           []TestCase  `json:"testcases"`
 	CallbackURL         string      `json:"callback_url"`
+	AttemptID           string      `json:"attempt_id"`
 	RetryCount          int         `json:"retry_count"`
 }
 
@@ -31,6 +32,7 @@ type Result struct {
 	MemoryUsedKb  int          `json:"memory_used_kb"`
 	WorkerID      string       `json:"worker_id"`
 	WorkerVersion string       `json:"worker_version"`
+	AttemptID     string       `json:"attempt_id,omitempty"`
 }
 
 type CaseResult struct {

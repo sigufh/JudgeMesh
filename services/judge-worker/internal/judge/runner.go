@@ -66,6 +66,7 @@ func (r *Runner) execute(ctx context.Context, t Task) Result {
 		Status:        "SE",
 		WorkerID:      r.cfg.WorkerID,
 		WorkerVersion: r.version,
+		AttemptID:     t.AttemptID,
 	}
 	if len(t.Testcases) == 0 {
 		result.Message = "no testcases"
