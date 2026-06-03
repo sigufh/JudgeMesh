@@ -9,6 +9,8 @@ export default function Contests() {
   const [contests, setContests] = useState<Contest[]>([]);
   const [rank, setRank] = useState<RankEntry[]>([]);
   const [error, setError] = useState('');
+  const safeContests = Array.isArray(contests) ? contests : [];
+  const safeRank = Array.isArray(rank) ? rank : [];
 
   useEffect(() => {
     let cancelled = false;
@@ -61,7 +63,7 @@ export default function Contests() {
               </tr>
             </thead>
             <tbody>
-              {contests.map((contest) => (
+              {safeContests.map((contest) => (
                 <tr key={contest.id}>
                   <td>
                     <Link to={`/contests/${contest.id}`}>{contest.title}</Link>
@@ -83,7 +85,7 @@ export default function Contests() {
                   </td>
                 </tr>
               ))}
-              {contests.length === 0 && (
+              {safeContests.length === 0 && (
                 <tr>
                   <td colSpan={4} className="muted">
                     No contests loaded.
@@ -111,7 +113,7 @@ export default function Contests() {
               </tr>
             </thead>
             <tbody>
-              {rank.map((entry) => (
+              {safeRank.map((entry) => (
                 <tr key={entry.userId}>
                   <td>{entry.rank}</td>
                   <td>{entry.username}</td>
@@ -119,7 +121,7 @@ export default function Contests() {
                   <td>{entry.penaltyMinutes}</td>
                 </tr>
               ))}
-              {rank.length === 0 && (
+              {safeRank.length === 0 && (
                 <tr>
                   <td colSpan={4} className="muted">
                     Accepted submissions will populate this table.

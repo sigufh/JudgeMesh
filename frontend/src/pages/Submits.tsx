@@ -9,6 +9,7 @@ export default function Submits() {
   const [submits, setSubmits] = useState<Submit[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const safeSubmits = Array.isArray(submits) ? submits : [];
 
   useEffect(() => {
     void loadSubmits();
@@ -29,7 +30,7 @@ export default function Submits() {
   }
 
   function updateSubmit(nextSubmit: Submit) {
-    setSubmits((current) => current.map((item) => (item.id === nextSubmit.id ? nextSubmit : item)));
+    setSubmits((current) => (Array.isArray(current) ? current : []).map((item) => (item.id === nextSubmit.id ? nextSubmit : item)));
   }
 
   return (
@@ -65,10 +66,10 @@ export default function Submits() {
             </tr>
           </thead>
           <tbody>
-            {submits.map((submit) => (
+            {safeSubmits.map((submit) => (
               <LiveSubmitRow key={submit.id} submit={submit} onUpdate={updateSubmit} />
             ))}
-            {!loading && submits.length === 0 && (
+            {!loading && safeSubmits.length === 0 && (
               <tr>
                 <td colSpan={7} className="muted">
                   No submissions yet. Open a problem and submit starter code.
@@ -117,9 +118,11 @@ function LiveSubmitRow({
       <td>{submit.timeUsedMs == null ? '-' : `${submit.timeUsedMs} ms`}</td>
       <td>{submit.judgedByWorker ?? '-'}</td>
       <td>
-        <span className={`status ${terminal || liveState === 'open' ? 'AC' : 'PENDING'}`}>
-          {terminal ? 'Done' : liveState === 'open' ? 'Live' : 'Retry'}
-        </span>
+        <Link to={`/submits/${submit.id}`}>
+          <span className={`status ${terminal || liveState === 'open' ? 'AC' : 'PENDING'}`}>
+            {terminal ? 'Done' : liveState === 'open' ? 'Live' : 'Track'}
+          </span>
+        </Link>
       </td>
     </tr>
   );

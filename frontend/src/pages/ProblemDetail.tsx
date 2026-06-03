@@ -22,6 +22,7 @@ export default function ProblemDetail() {
   const [submit, setSubmit] = useState<Submit | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const safeTags = Array.isArray(problem?.tags) ? problem.tags : [];
   const submitLiveState = useLiveTopic<Submit>(
     submit ? `/topic/submission/${submit.id}` : null,
     (nextSubmit) => {
@@ -90,7 +91,7 @@ export default function ProblemDetail() {
       <section className="grid two">
         <article className="panel pad">
           <div className="tag-row" style={{ marginBottom: 12 }}>
-            {problem?.tags.map((tag) => (
+            {safeTags.map((tag) => (
               <span className="tag" key={tag}>
                 {tag}
               </span>
@@ -124,7 +125,7 @@ export default function ProblemDetail() {
               <span className={`status ${submit.status}`}>{submit.status}</span>
               {submit.score != null && <> / score {submit.score}</>}
               {submit.judgedByWorker && <> / {submit.judgedByWorker}</>}.{' '}
-              <Link to="/submits">Track it</Link>.
+              <Link to={`/submits/${submit.id}`}>Track it</Link>.
               <div className="muted">live channel {submitLiveState === 'open' ? 'connected' : 'reconnecting'}</div>
               {submit.judgeMessage && <div className="muted">{submit.judgeMessage}</div>}
             </div>

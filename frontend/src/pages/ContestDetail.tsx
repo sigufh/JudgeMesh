@@ -12,6 +12,8 @@ export default function ContestDetail() {
   const [error, setError] = useState('');
 
   const contest = useMemo(() => contests.find((item) => String(item.id) === id), [contests, id]);
+  const safeRank = Array.isArray(rank) ? rank : [];
+  const problemIds = Array.isArray(contest?.problemIds) ? contest.problemIds : [];
 
   useEffect(() => {
     if (!id) return;
@@ -79,7 +81,7 @@ export default function ContestDetail() {
           )}
           <h3>Problems</h3>
           <div className="tag-row">
-            {contest?.problemIds.map((problemId) => (
+            {problemIds.map((problemId) => (
               <Link className="ghost-button" key={problemId} to={`/problems/${problemId}`}>
                 Problem #{problemId}
               </Link>
@@ -104,7 +106,7 @@ export default function ContestDetail() {
               </tr>
             </thead>
             <tbody>
-              {rank.map((entry) => (
+              {safeRank.map((entry) => (
                 <tr key={entry.userId}>
                   <td>{entry.rank}</td>
                   <td>{entry.username}</td>
@@ -112,7 +114,7 @@ export default function ContestDetail() {
                   <td>{entry.penaltyMinutes}</td>
                 </tr>
               ))}
-              {rank.length === 0 && (
+              {safeRank.length === 0 && (
                 <tr>
                   <td colSpan={4} className="muted">
                     No accepted contest submissions yet.
