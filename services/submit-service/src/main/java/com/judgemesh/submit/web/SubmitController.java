@@ -64,8 +64,11 @@ public class SubmitController {
     }
 
     @PostMapping("/api/submit/internal/{id}/judging")
-    public SubmitDTO markJudging(@PathVariable Long id, @RequestParam String workerId) {
-        return submissionService.markJudging(id, workerId);
+    public SubmitDTO markJudging(
+            @PathVariable Long id,
+            @RequestParam String workerId,
+            @RequestParam(required = false) String attemptId) {
+        return submissionService.markJudging(id, workerId, attemptId);
     }
 
     public record SubmitRequest(

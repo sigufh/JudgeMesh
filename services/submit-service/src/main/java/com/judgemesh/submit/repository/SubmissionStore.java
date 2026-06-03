@@ -38,6 +38,7 @@ public class SubmissionStore {
             submission.setId(ids.incrementAndGet());
             submission.setSubmittedAt(Instant.now());
         }
+        normalizeTransientFields(submission);
         submissions.put(submission.getId(), submission);
         return submission;
     }
@@ -72,8 +73,122 @@ public class SubmissionStore {
                 .toList();
     }
 
+    public List<Submission> findTimedOutJudging(Instant cutoff, int limit) {
+        if (jdbcTemplate != null) {
+            return jdbcTemplate.query("""
+                            select * from submission
+                            where status = ? and judging_started_at is not null and judging_started_at <= ?
+                            order by judging_started_at asc
+                            limit ?
+                            """,
+                    mapper(),
+                    SubmissionStatus.JUDGING.name(),
+                    Timestamp.from(cutoff),
+                    limit);
+        }
+        return submissions.values().stream()
+                .filter(submission -> submission.getStatus() == SubmissionStatus.JUDGING)
+                .filter(submission -> submission.getJudgingStartedAt() != null)
+                .filter(submission -> !submission.getJudgingStartedAt().isAfter(cutoff))
+                .sorted(Comparator.comparing(Submission::getJudgingStartedAt))
+                .limit(limit)
+                .toList();
+    }
+
+    public Optional<Submission> claimTimedOutJudgingForRetry(
+            Long id,
+            Instant expectedJudgingStartedAt,
+            int expectedRetryCount,
+            String judgeMessage) {
+        Instant now = Instant.now();
+        if (jdbcTemplate != null) {
+            int updated = jdbcTemplate.update("""
+                            update submission
+                            set judge_retry_count = ?, judging_started_at = ?, judge_message = ?, judged_by_worker = ?
+                            where id = ? and status = ? and judging_started_at = ? and judge_retry_count = ?
+                            """,
+                    expectedRetryCount + 1,
+                    Timestamp.from(now),
+                    judgeMessage,
+                    null,
+                    id,
+                    SubmissionStatus.JUDGING.name(),
+                    Timestamp.from(expectedJudgingStartedAt),
+                    expectedRetryCount);
+            return updated == 0 ? Optional.empty() : findById(id);
+        }
+
+        Submission submission = submissions.get(id);
+        if (submission == null || submission.getStatus() != SubmissionStatus.JUDGING) {
+            return Optional.empty();
+        }
+        if (!expectedJudgingStartedAt.equals(submission.getJudgingStartedAt())) {
+            return Optional.empty();
+        }
+        if (expectedRetryCount != currentRetryCount(submission)) {
+            return Optional.empty();
+        }
+        submission.setJudgeRetryCount(expectedRetryCount + 1);
+        submission.setJudgingStartedAt(now);
+        submission.setJudgeMessage(judgeMessage);
+        submission.setJudgedByWorker(null);
+        submissions.put(id, submission);
+        return Optional.of(submission);
+    }
+
+    public Optional<Submission> markTimedOutJudgingAsSystemError(
+            Long id,
+            Instant expectedJudgingStartedAt,
+            int expectedRetryCount,
+            String judgeMessage) {
+        Instant now = Instant.now();
+        if (jdbcTemplate != null) {
+            int updated = jdbcTemplate.update("""
+                            update submission
+                            set status = ?, score = ?, time_used_ms = ?, memory_used_kb = ?, judge_message = ?,
+                                judged_at = ?, judging_started_at = ?, active_attempt_id = ?
+                            where id = ? and status = ? and judging_started_at = ? and judge_retry_count = ?
+                            """,
+                    SubmissionStatus.SE.name(),
+                    0,
+                    0,
+                    0,
+                    judgeMessage,
+                    Timestamp.from(now),
+                    null,
+                    null,
+                    id,
+                    SubmissionStatus.JUDGING.name(),
+                    Timestamp.from(expectedJudgingStartedAt),
+                    expectedRetryCount);
+            return updated == 0 ? Optional.empty() : findById(id);
+        }
+
+        Submission submission = submissions.get(id);
+        if (submission == null || submission.getStatus() != SubmissionStatus.JUDGING) {
+            return Optional.empty();
+        }
+        if (!expectedJudgingStartedAt.equals(submission.getJudgingStartedAt())) {
+            return Optional.empty();
+        }
+        if (expectedRetryCount != currentRetryCount(submission)) {
+            return Optional.empty();
+        }
+        submission.setStatus(SubmissionStatus.SE);
+        submission.setScore(0);
+        submission.setTimeUsedMs(0);
+        submission.setMemoryUsedKb(0);
+        submission.setJudgeMessage(judgeMessage);
+        submission.setJudgedAt(now);
+        submission.setJudgingStartedAt(null);
+        submission.setActiveAttemptId(null);
+        submissions.put(id, submission);
+        return Optional.of(submission);
+    }
+
     private Submission saveJdbc(Submission submission) {
         Instant now = Instant.now();
+        normalizeTransientFields(submission);
         if (submission.getId() == null) {
             if (submission.getSubmittedAt() == null) {
                 submission.setSubmittedAt(now);
@@ -83,8 +198,8 @@ public class SubmissionStore {
                 PreparedStatement ps = connection.prepareStatement("""
                         insert into submission(user_id, problem_id, contest_id, language, code, code_length, status,
                                                score, time_used_ms, memory_used_kb, judge_message, judged_by_worker,
-                                               submitted_at, judged_at)
-                        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                               active_attempt_id, submitted_at, judging_started_at, judged_at, judge_retry_count)
+                        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, Statement.RETURN_GENERATED_KEYS);
                 bindSubmission(ps, submission);
                 return ps;
@@ -99,11 +214,12 @@ public class SubmissionStore {
                     update submission
                     set user_id = ?, problem_id = ?, contest_id = ?, language = ?, code = ?, code_length = ?,
                         status = ?, score = ?, time_used_ms = ?, memory_used_kb = ?, judge_message = ?,
-                        judged_by_worker = ?, submitted_at = ?, judged_at = ?
+                        judged_by_worker = ?, active_attempt_id = ?, submitted_at = ?, judging_started_at = ?, judged_at = ?,
+                        judge_retry_count = ?
                     where id = ?
                     """, ps -> {
                 bindSubmission(ps, submission);
-                ps.setLong(15, submission.getId());
+                ps.setLong(18, submission.getId());
             });
         }
         return submission;
@@ -126,8 +242,11 @@ public class SubmissionStore {
         ps.setObject(10, submission.getMemoryUsedKb());
         ps.setString(11, submission.getJudgeMessage());
         ps.setString(12, submission.getJudgedByWorker());
-        ps.setTimestamp(13, Timestamp.from(submission.getSubmittedAt()));
-        ps.setTimestamp(14, submission.getJudgedAt() == null ? null : Timestamp.from(submission.getJudgedAt()));
+        ps.setString(13, submission.getActiveAttemptId());
+        ps.setTimestamp(14, Timestamp.from(submission.getSubmittedAt()));
+        ps.setTimestamp(15, submission.getJudgingStartedAt() == null ? null : Timestamp.from(submission.getJudgingStartedAt()));
+        ps.setTimestamp(16, submission.getJudgedAt() == null ? null : Timestamp.from(submission.getJudgedAt()));
+        ps.setInt(17, currentRetryCount(submission));
     }
 
     private RowMapper<Submission> mapper() {
@@ -145,9 +264,22 @@ public class SubmissionStore {
                 .memoryUsedKb(nullableInt(rs, "memory_used_kb"))
                 .judgeMessage(rs.getString("judge_message"))
                 .judgedByWorker(rs.getString("judged_by_worker"))
+                .activeAttemptId(rs.getString("active_attempt_id"))
                 .submittedAt(toInstant(rs.getTimestamp("submitted_at")))
+                .judgingStartedAt(toInstant(rs.getTimestamp("judging_started_at")))
                 .judgedAt(toInstant(rs.getTimestamp("judged_at")))
+                .judgeRetryCount(nullableInt(rs, "judge_retry_count"))
                 .build();
+    }
+
+    private static void normalizeTransientFields(Submission submission) {
+        if (submission.getJudgeRetryCount() == null) {
+            submission.setJudgeRetryCount(0);
+        }
+    }
+
+    private static int currentRetryCount(Submission submission) {
+        return submission.getJudgeRetryCount() == null ? 0 : submission.getJudgeRetryCount();
     }
 
     private static Long nullableLong(java.sql.ResultSet rs, String column) throws java.sql.SQLException {

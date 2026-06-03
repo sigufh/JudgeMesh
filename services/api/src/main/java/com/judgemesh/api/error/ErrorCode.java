@@ -32,6 +32,8 @@ public enum ErrorCode {
     JUDGE_TIMEOUT("4010", "判题超时"),
     JUDGE_WORKER_UNAVAILABLE("4011", "无可用 worker"),
 
+    JUDGE_MQ_UNAVAILABLE("4012", "MQ unavailable"),
+
     // contest 5xxx
     CONTEST_NOT_FOUND("5000", "比赛不存在"),
     CONTEST_NOT_STARTED("5001", "比赛未开始"),
