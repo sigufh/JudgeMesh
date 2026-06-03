@@ -60,8 +60,17 @@ judgemesh:
     deduct-score-enabled: ${SUBMIT_DEDUCT_SCORE_ENABLED:false}
     submit-cost: ${SUBMIT_COST:1}
     code-length-limit: ${SUBMIT_CODE_LENGTH_LIMIT:65536}
+    recovery:
+      enabled: ${SUBMIT_RECOVERY_ENABLED:true}
+      scan-delay-ms: ${SUBMIT_RECOVERY_SCAN_DELAY_MS:5000}
+      judging-timeout-seconds: ${SUBMIT_RECOVERY_JUDGING_TIMEOUT_SECONDS:30}
+      batch-size: ${SUBMIT_RECOVERY_BATCH_SIZE:20}
+      max-retry: ${SUBMIT_RECOVERY_MAX_RETRY:2}
+  dispatcher:
+    base-url: ${DISPATCHER_BASE_URL:http://judge-dispatcher.judgemesh.svc:8084}
+    direct-dispatch-enabled: ${DISPATCHER_DIRECT_DISPATCH_ENABLED:true}
   problem:
-    base-url: ${PROBLEM_SERVICE_URL:http://127.0.0.1:8082}
+    base-url: ${PROBLEM_SERVICE_URL:http://problem-service.judgemesh.svc:8082}
 
 seata:
   enabled: ${SEATA_ENABLED:false}

@@ -8,11 +8,13 @@ import com.judgemesh.api.dto.SubmitCreateRequest;
 import com.judgemesh.api.dto.SubmitDTO;
 import com.judgemesh.api.enumx.LanguageType;
 import com.judgemesh.api.enumx.SubmitStatus;
+import com.judgemesh.api.error.ErrorCode;
 import com.judgemesh.api.message.JudgeResult;
 import com.judgemesh.api.message.JudgeTask;
 import com.judgemesh.submit.domain.Contest;
 import com.judgemesh.submit.domain.Submission;
 import com.judgemesh.submit.domain.SubmissionStatus;
+import com.judgemesh.submit.error.ApiErrorStatusException;
 import com.judgemesh.submit.repository.SubmissionStore;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.seata.spring.annotation.GlobalTransactional;
@@ -26,12 +28,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -51,7 +57,10 @@ public class SubmissionService {
     private final boolean deductScoreEnabled;
     private final int submitCost;
     private final int codeLengthLimit;
+    private final String dispatcherBaseUrl;
+    private final boolean directDispatchEnabled;
     private final RestTemplate directProblemClient = new RestTemplate();
+    private final RestTemplate directDispatcherClient = new RestTemplate();
 
     public SubmissionService(
             SubmissionStore store,
@@ -68,7 +77,9 @@ public class SubmissionService {
             @Value("${judgemesh.problem.base-url:http://127.0.0.1:8082}") String problemBaseUrl,
             @Value("${judgemesh.submit.deduct-score-enabled:false}") boolean deductScoreEnabled,
             @Value("${judgemesh.submit.submit-cost:1}") int submitCost,
-            @Value("${judgemesh.submit.code-length-limit:65536}") int codeLengthLimit) {
+            @Value("${judgemesh.submit.code-length-limit:65536}") int codeLengthLimit,
+            @Value("${judgemesh.dispatcher.base-url:http://127.0.0.1:8084}") String dispatcherBaseUrl,
+            @Value("${judgemesh.dispatcher.direct-dispatch-enabled:true}") boolean directDispatchEnabled) {
         this.store = store;
         this.contestService = contestService;
         this.rankingService = rankingService;
@@ -84,6 +95,8 @@ public class SubmissionService {
         this.deductScoreEnabled = deductScoreEnabled;
         this.submitCost = submitCost;
         this.codeLengthLimit = codeLengthLimit;
+        this.dispatcherBaseUrl = dispatcherBaseUrl;
+        this.directDispatchEnabled = directDispatchEnabled;
     }
 
     @GlobalTransactional(name = "submit-create-api", rollbackFor = Exception.class)
@@ -164,13 +177,60 @@ public class SubmissionService {
         return toDto(applyResultInternal(result));
     }
 
-    public SubmitDTO markJudging(Long id, String workerId) {
+    public SubmitDTO markJudging(Long id, String workerId, String attemptId) {
         Submission submission = find(id);
+        if (!matchesActiveAttempt(submission, attemptId)) {
+            log.warn("Ignoring judging mark for stale attempt submitId={} workerId={} attemptId={} activeAttemptId={}",
+                    id, workerId, attemptId, submission.getActiveAttemptId());
+            return toDto(submission);
+        }
         submission.setStatus(SubmissionStatus.JUDGING);
         submission.setJudgedByWorker(workerId);
+        submission.setJudgingStartedAt(Instant.now());
         store.save(submission);
         notifySubmission(submission);
         return toDto(submission);
+    }
+
+    public boolean recoverTimedOutJudging(Long id, Instant expectedJudgingStartedAt, int expectedRetryCount, int maxRetry) {
+        if (expectedJudgingStartedAt == null) {
+            return false;
+        }
+        if (expectedRetryCount >= maxRetry) {
+            String message = "worker timeout after " + maxRetry + " auto retries";
+            Optional<Submission> failed = store.markTimedOutJudgingAsSystemError(
+                    id,
+                    expectedJudgingStartedAt,
+                    expectedRetryCount,
+                    message);
+            failed.ifPresent(this::notifySubmission);
+            return failed.isPresent();
+        }
+
+        String message = "worker timeout, auto retry %d/%d".formatted(expectedRetryCount + 1, maxRetry);
+        Optional<Submission> claimed = store.claimTimedOutJudgingForRetry(
+                id,
+                expectedJudgingStartedAt,
+                expectedRetryCount,
+                message);
+        if (claimed.isEmpty()) {
+            return false;
+        }
+
+        Submission submission = claimed.get();
+        notifySubmission(submission);
+        try {
+            publishTask(submission, new SubmitCommand(
+                    submission.getUserId(),
+                    submission.getProblemId(),
+                    submission.getContestId(),
+                    submission.getLanguage(),
+                    submission.getCode()), currentRetryCount(submission));
+            return true;
+        } catch (RuntimeException ex) {
+            log.warn("Failed to requeue timed out submission {}", id, ex);
+            return false;
+        }
     }
 
     public SubmitDTO toDto(Submission submission) {
@@ -197,6 +257,11 @@ public class SubmissionService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "judge result must contain submit_id");
         }
         Submission submission = find(result.getSubmitId());
+        if (!matchesActiveAttempt(submission, result.getAttemptId())) {
+            log.warn("Ignoring stale judge result submitId={} resultAttemptId={} activeAttemptId={} workerId={}",
+                    result.getSubmitId(), result.getAttemptId(), submission.getActiveAttemptId(), result.getWorkerId());
+            return submission;
+        }
         SubmissionStatus status = SubmissionStatus.valueOf(result.getStatus().toUpperCase(Locale.ROOT));
         submission.setStatus(status);
         submission.setScore(status == SubmissionStatus.AC ? 100 : scoreFromCases(result.getCases()));
@@ -204,6 +269,8 @@ public class SubmissionService {
         submission.setMemoryUsedKb(result.getMemoryUsedKb());
         submission.setJudgeMessage(result.getMessage());
         submission.setJudgedByWorker(result.getWorkerId());
+        submission.setActiveAttemptId(null);
+        submission.setJudgingStartedAt(null);
         submission.setJudgedAt(Instant.now());
         store.save(submission);
 
@@ -228,9 +295,35 @@ public class SubmissionService {
     }
 
     private void publishTask(Submission submission, SubmitCommand command) {
+        publishTask(submission, command, 0);
+    }
+
+    private void publishTask(Submission submission, SubmitCommand command, int retryCount) {
+        JudgeTask task = buildJudgeTask(submission, command, retryCount);
+        try {
+            RabbitTemplate template = rabbitTemplate.getIfAvailable();
+            if (template != null) {
+                template.convertAndSend(exchange, submitRoutingKey, task);
+                return;
+            }
+        } catch (AmqpException ex) {
+            log.warn("RabbitMQ publish failed for submission {}, falling back to direct dispatcher path",
+                    submission.getId(), ex);
+            dispatchDirectly(submission, task, "RabbitMQ unavailable: " + ex.getMessage());
+            return;
+        }
+        log.warn("RabbitTemplate unavailable for submission {}, falling back to direct dispatcher path",
+                submission.getId());
+        dispatchDirectly(submission, task, "RabbitTemplate unavailable");
+    }
+
+    private JudgeTask buildJudgeTask(Submission submission, SubmitCommand command, int retryCount) {
         ProblemDTO problem = loadProblem(submission.getProblemId());
         List<JudgeTask.TestCaseRef> testcases = loadManifest(submission.getProblemId(), command.testcaseManifestUrl());
-        JudgeTask task = JudgeTask.builder()
+        String attemptId = UUID.randomUUID().toString();
+        submission.setActiveAttemptId(attemptId);
+        store.save(submission);
+        return JudgeTask.builder()
                 .submitId(submission.getId())
                 .problemId(submission.getProblemId())
                 .source(submission.getCode())
@@ -240,17 +333,40 @@ public class SubmissionService {
                 .testcaseManifestUrl(resolveManifestUrl(command.testcaseManifestUrl(), problem.getTestcaseManifestUrl(), submission.getProblemId()))
                 .testcases(testcases)
                 .callbackUrl(callbackUrl)
-                .retryCount(0)
+                .attemptId(attemptId)
+                .retryCount(retryCount)
                 .build();
+    }
+
+    private void dispatchDirectly(Submission submission, JudgeTask task, String reason) {
+        if (!directDispatchEnabled) {
+            throw new ApiErrorStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    ErrorCode.JUDGE_MQ_UNAVAILABLE,
+                    reason + "; direct dispatcher fallback disabled");
+        }
+
+        String endpoint = dispatcherBaseUrl + "/internal/dispatcher/dispatch";
         try {
-            RabbitTemplate template = rabbitTemplate.getIfAvailable();
-            if (template != null) {
-                template.convertAndSend(exchange, submitRoutingKey, task);
-            } else {
-                submission.setJudgeMessage("RabbitTemplate unavailable; task stored as PENDING");
+            ResponseEntity<Void> response = directDispatcherClient.postForEntity(endpoint, task, Void.class);
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new ApiErrorStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        ErrorCode.JUDGE_MQ_UNAVAILABLE,
+                        "dispatcher fallback rejected with status " + response.getStatusCode().value());
             }
-        } catch (AmqpException ex) {
-            submission.setJudgeMessage("RabbitMQ unavailable; task stored as PENDING: " + ex.getMessage());
+            submission.setJudgeMessage("direct dispatcher fallback accepted after MQ degradation");
+        } catch (HttpStatusCodeException ex) {
+            if (ex.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE) {
+                throw new ApiErrorStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        ErrorCode.JUDGE_WORKER_UNAVAILABLE,
+                        "direct dispatcher fallback has no healthy worker");
+            }
+            throw new ApiErrorStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    ErrorCode.JUDGE_MQ_UNAVAILABLE,
+                    "dispatcher fallback returned " + ex.getStatusCode().value());
+        } catch (RestClientException ex) {
+            throw new ApiErrorStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    ErrorCode.JUDGE_MQ_UNAVAILABLE,
+                    "dispatcher fallback unavailable: " + ex.getMessage());
         }
     }
 
@@ -413,6 +529,18 @@ public class SubmissionService {
         }
         long accepted = cases.stream().filter(c -> "AC".equalsIgnoreCase(c.getStatus())).count();
         return (int) ((accepted * 100) / cases.size());
+    }
+
+    private static int currentRetryCount(Submission submission) {
+        return submission.getJudgeRetryCount() == null ? 0 : submission.getJudgeRetryCount();
+    }
+
+    private static boolean matchesActiveAttempt(Submission submission, String attemptId) {
+        String activeAttemptId = submission.getActiveAttemptId();
+        if (activeAttemptId == null || activeAttemptId.isBlank()) {
+            return attemptId == null || attemptId.isBlank();
+        }
+        return activeAttemptId.equals(attemptId);
     }
 
     public record SubmitCommand(

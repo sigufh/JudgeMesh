@@ -21,6 +21,9 @@ public class Submission {
     private Integer memoryUsedKb;
     private String judgeMessage;
     private String judgedByWorker;
+    private String activeAttemptId;
     private Instant submittedAt;
+    private Instant judgingStartedAt;
     private Instant judgedAt;
+    private Integer judgeRetryCount;
 }

@@ -31,6 +31,9 @@ spec:
             - { name: REDIS_HOST, value: redis.judgemesh-infra.svc }
             - { name: RABBITMQ_HOST, value: rabbitmq.judgemesh-infra.svc }
             - { name: SUBMIT_CALLBACK_URL, value: http://submit-service.judgemesh.svc:8083/api/submit/internal/result }
+            - { name: PROBLEM_SERVICE_URL, value: http://problem-service.judgemesh.svc:8082 }
+            - { name: DISPATCHER_BASE_URL, value: http://judge-dispatcher.judgemesh.svc:8084 }
+            - { name: DISPATCHER_DIRECT_DISPATCH_ENABLED, value: "true" }
           envFrom:
             - secretRef: { name: judgemesh-secrets }
           resources:

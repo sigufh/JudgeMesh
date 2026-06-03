@@ -2,6 +2,7 @@ package com.judgemesh.submit.web;
 
 import com.judgemesh.api.error.ApiResponse;
 import com.judgemesh.api.error.ErrorCode;
+import com.judgemesh.submit.error.ApiErrorStatusException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -17,6 +18,12 @@ public class ApiExceptionHandler {
         return ResponseEntity.badRequest().body(ApiResponse.fail(ErrorCode.BAD_REQUEST, ex.getMessage()));
     }
 
+    @ExceptionHandler(ApiErrorStatusException.class)
+    ResponseEntity<ApiResponse<Void>> apiError(ApiErrorStatusException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(ApiResponse.fail(ex.getErrorCode(), ex.getMessage()));
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     ResponseEntity<ApiResponse<Void>> status(ResponseStatusException ex) {
         HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
@@ -24,6 +31,7 @@ public class ApiExceptionHandler {
             case NOT_FOUND -> ErrorCode.SUBMIT_NOT_FOUND;
             case TOO_MANY_REQUESTS -> ErrorCode.SUBMIT_RATE_LIMITED;
             case FORBIDDEN -> ErrorCode.CONTEST_NOT_REGISTERED;
+            case SERVICE_UNAVAILABLE -> ErrorCode.INTERNAL_ERROR;
             default -> ErrorCode.BAD_REQUEST;
         };
         return ResponseEntity.status(status).body(ApiResponse.fail(code, ex.getReason()));
