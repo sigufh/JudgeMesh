@@ -70,8 +70,12 @@ export default function Home() {
     });
   });
 
-  const accepted = submits.filter((submit) => submit.status === 'AC').length;
-  const activeWorkers = dispatcher?.workers.workers.filter((worker) => worker.available).length ?? 0;
+  const safeSubmits = Array.isArray(submits) ? submits : [];
+  const safeContests = Array.isArray(contests) ? contests : [];
+  const safeRank = Array.isArray(rank) ? rank : [];
+  const safeWorkers = Array.isArray(dispatcher?.workers?.workers) ? dispatcher.workers.workers : [];
+  const accepted = safeSubmits.filter((submit) => submit.status === 'AC').length;
+  const activeWorkers = safeWorkers.filter((worker) => worker.available).length;
 
   async function runLeaderAction(action: 'relinquish' | 'reacquire') {
     setControlBusy(true);
@@ -137,7 +141,7 @@ export default function Home() {
               </tr>
             </thead>
             <tbody>
-              {contests.slice(0, 5).map((contest) => (
+              {safeContests.slice(0, 5).map((contest) => (
                 <tr key={contest.id}>
                   <td>
                     <Link to={`/contests/${contest.id}`}>{contest.title}</Link>
@@ -183,7 +187,7 @@ export default function Home() {
               </tr>
             </thead>
             <tbody>
-              {rank.slice(0, 6).map((entry) => (
+              {safeRank.slice(0, 6).map((entry) => (
                 <tr key={entry.userId}>
                   <td>{entry.rank}</td>
                   <td>{entry.username}</td>
@@ -235,7 +239,7 @@ export default function Home() {
         <div className="grid two">
           <div className="metric">
             <span className="muted">Leader</span>
-            <strong>{dispatcher?.leader.leader ?? 'none'}</strong>
+            <strong>{dispatcher?.leader.currentLeader ?? dispatcher?.leader.leader ?? 'none'}</strong>
             <span className="muted">
               self {dispatcher?.leader.self ?? '-'} / {dispatcher?.leader.isLeader ? 'active' : 'standby'}
             </span>
@@ -256,7 +260,7 @@ export default function Home() {
             </tr>
           </thead>
           <tbody>
-            {dispatcher?.workers.workers.map((worker) => (
+            {safeWorkers.map((worker) => (
               <tr key={worker.url}>
                 <td>{worker.url}</td>
                 <td>
@@ -265,11 +269,11 @@ export default function Home() {
                     <div className="muted">until {new Date(worker.blacklistedUntil).toLocaleTimeString()}</div>
                   )}
                 </td>
-                <td>{worker.inflight}</td>
+                <td>{worker.maxConcurrency ? `${worker.inflight}/${worker.maxConcurrency}` : worker.inflight}</td>
                 <td className="muted">{worker.lastError ?? '-'}</td>
               </tr>
             ))}
-            {!dispatcher?.workers.workers.length && (
+            {!safeWorkers.length && (
               <tr>
                 <td colSpan={4} className="muted">
                   No worker registry data yet.

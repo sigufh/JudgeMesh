@@ -33,7 +33,11 @@ export default function ProblemList() {
     };
   }, [q, difficulty]);
 
-  const tags = useMemo(() => Array.from(new Set(problems.flatMap((problem) => problem.tags))).slice(0, 10), [problems]);
+  const safeProblems = Array.isArray(problems) ? problems : [];
+  const tags = useMemo(
+    () => Array.from(new Set(safeProblems.flatMap((problem) => (Array.isArray(problem.tags) ? problem.tags : [])))).slice(0, 10),
+    [safeProblems],
+  );
 
   return (
     <div className="stack">
@@ -116,13 +120,13 @@ export default function ProblemList() {
               </tr>
             )}
             {loaded &&
-              problems.map((problem) => (
+              safeProblems.map((problem) => (
                 <tr key={problem.id}>
                   <td>{problem.id}</td>
                   <td>
                     <Link to={`/problems/${problem.id}`}>{problem.title}</Link>
                     <div className="tag-row" style={{ marginTop: 6 }}>
-                      {problem.tags.map((tag) => (
+                      {(Array.isArray(problem.tags) ? problem.tags : []).map((tag) => (
                         <span className="tag" key={tag}>
                           {tag}
                         </span>
@@ -140,7 +144,7 @@ export default function ProblemList() {
                   </td>
                 </tr>
               ))}
-            {loaded && problems.length === 0 && (
+            {loaded && safeProblems.length === 0 && (
               <tr>
                 <td colSpan={5} className="muted">
                   No problems matched the current filter.

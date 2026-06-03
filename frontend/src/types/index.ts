@@ -86,11 +86,12 @@ export interface RankEntry {
   score: number;
 }
 
-export type WorkerState = 'UP' | 'BLACKLISTED' | 'DOWN' | string;
+export type WorkerState = 'UP' | 'BLACKLISTED' | 'DOWN' | 'SATURATED' | string;
 
 export interface DispatcherWorker {
   url: string;
   inflight: number;
+  maxConcurrency?: number;
   available: boolean;
   state: WorkerState;
   blacklistedUntil?: string | null;
@@ -106,6 +107,7 @@ export interface DispatcherWorkerRegistryStatus {
 
 export interface DispatcherLeaderStatus {
   leader?: string | null;
+  currentLeader?: string | null;
   self: string;
   isLeader: boolean;
   mode: string;
