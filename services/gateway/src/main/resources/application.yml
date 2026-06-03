@@ -48,6 +48,11 @@ spring:
               uri: lb://judge-dispatcher
               predicates:
                 - Path=/api/admin/dispatcher/**, /admin/dispatcher/**
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
 
 judgemesh:
   jwt:
