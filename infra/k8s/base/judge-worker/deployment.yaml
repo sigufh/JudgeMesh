@@ -37,6 +37,7 @@ spec:
             - { name: CALLBACK_BASE, value: http://submit-service.judgemesh.svc:8083 }
             - { name: JUDGE_ALLOW_UNSANDBOXED, value: "false" }
             - { name: JUDGE_WORK_DIR, value: /tmp }
+            - { name: JUDGE_MAX_CONCURRENCY, value: "1" }
           # ⚠️ isolate 需要较高权限;生产可换成 SYS_ADMIN 等细粒度 cap
           securityContext:
             privileged: true
@@ -46,6 +47,13 @@ spec:
           readinessProbe:
             httpGet: { path: /health, port: 8090 }
             initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /health, port: 8090 }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 3
 ---
 apiVersion: v1
 kind: Service
@@ -53,6 +61,17 @@ metadata:
   name: judge-worker
   namespace: judgemesh
 spec:
+  selector: { app: judge-worker }
+  ports:
+    - { port: 8090, targetPort: 8090, name: http }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: judge-worker-headless
+  namespace: judgemesh
+spec:
+  clusterIP: None
   selector: { app: judge-worker }
   ports:
     - { port: 8090, targetPort: 8090, name: http }

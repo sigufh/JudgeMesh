@@ -57,6 +57,10 @@ public class JudgeTask {
     @JsonProperty("callback_url")
     private String callbackUrl;
 
+    /** 单次派发尝试 ID,用于回调幂等校验 */
+    @JsonProperty("attempt_id")
+    private String attemptId;
+
     /** 重试次数(由 dispatcher 维护) */
     @JsonProperty("retry_count")
     private Integer retryCount;

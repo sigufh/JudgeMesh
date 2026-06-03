@@ -48,6 +48,10 @@ public class JudgeTaskListener {
             throw new ImmediateRequeueAmqpException("dispatcher follower requeue");
         }
         int retryCount = task.getRetryCount() == null ? 0 : task.getRetryCount();
+        if (isTransientCapacityFailure(result.message())) {
+            rabbitTemplate.convertAndSend(exchange, retryRoutingKey, retry(task, retryCount));
+            return;
+        }
         if (retryCount < maxRetry) {
             rabbitTemplate.convertAndSend(exchange, retryRoutingKey, retry(task, retryCount + 1));
             return;
@@ -68,11 +72,19 @@ public class JudgeTaskListener {
                 .testcaseManifestUrl(task.getTestcaseManifestUrl())
                 .testcases(task.getTestcases())
                 .callbackUrl(task.getCallbackUrl())
+                .attemptId(task.getAttemptId())
                 .retryCount(retryCount)
                 .build();
     }
 
     private static String nullSafe(String value) {
         return value == null ? "unknown" : value;
+    }
+
+    private static boolean isTransientCapacityFailure(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        return "worker saturated".equals(message) || "no healthy worker available".equals(message);
     }
 }

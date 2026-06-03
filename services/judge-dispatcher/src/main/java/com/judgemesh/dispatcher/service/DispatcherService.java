@@ -4,8 +4,10 @@ import com.judgemesh.api.message.JudgeResult;
 import com.judgemesh.api.message.JudgeTask;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.util.LinkedHashSet;
@@ -28,7 +30,15 @@ public class DispatcherService {
     }
 
     public DispatchResult dispatch(JudgeTask task) {
-        if (!leaderElectionService.isLeader()) {
+        return dispatchInternal(task, true);
+    }
+
+    public DispatchResult dispatchEmergency(JudgeTask task) {
+        return dispatchInternal(task, false);
+    }
+
+    private DispatchResult dispatchInternal(JudgeTask task, boolean requireLeader) {
+        if (requireLeader && !leaderElectionService.isLeader()) {
             return new DispatchResult(false, null, "not leader");
         }
 
@@ -49,8 +59,16 @@ public class DispatcherService {
                 if (response.getStatusCode().is2xxSuccessful()) {
                     return new DispatchResult(true, worker.toString(), "accepted");
                 }
-                String message = "worker rejected task with status " + response.getStatusCode().value();
-                workerRegistry.markFailed(worker, message);
+                String message = rejectionMessage(response.getStatusCode().value());
+                if (!isCapacityStatus(response.getStatusCode().value())) {
+                    workerRegistry.markFailed(worker, message);
+                }
+                lastFailure = new DispatchResult(false, worker.toString(), message);
+            } catch (HttpStatusCodeException ex) {
+                String message = rejectionMessage(ex.getStatusCode().value());
+                if (!isCapacityStatus(ex.getStatusCode().value())) {
+                    workerRegistry.markFailed(worker, message);
+                }
                 lastFailure = new DispatchResult(false, worker.toString(), message);
             } catch (RestClientException ex) {
                 workerRegistry.markFailed(worker, ex.getMessage());
@@ -74,7 +92,11 @@ public class DispatcherService {
         }
         String callback = task.getCallbackUrl().replace("/result", "/" + task.getSubmitId() + "/judging");
         try {
-            restTemplate.postForEntity(callback + "?workerId=" + worker.getAuthority(), null, String.class);
+            String uri = UriComponentsBuilder.fromHttpUrl(callback)
+                    .queryParam("workerId", worker.getAuthority())
+                    .queryParam("attemptId", task.getAttemptId())
+                    .toUriString();
+            restTemplate.postForEntity(uri, null, String.class);
         } catch (RestClientException ignored) {
             // The worker callback remains the source of truth; marking judging is best effort.
         }
@@ -90,6 +112,7 @@ public class DispatcherService {
                 .message("dispatcher failed to dispatch: " + message)
                 .workerId("dispatcher")
                 .workerVersion("0.0.1-SNAPSHOT")
+                .attemptId(task.getAttemptId())
                 .timeUsedMs(0)
                 .memoryUsedKb(0)
                 .build();
@@ -101,5 +124,16 @@ public class DispatcherService {
     }
 
     public record DispatchResult(boolean ok, String worker, String message) {
+    }
+
+    private static boolean isCapacityStatus(int statusCode) {
+        return statusCode == 429 || statusCode == 503;
+    }
+
+    private static String rejectionMessage(int statusCode) {
+        if (isCapacityStatus(statusCode)) {
+            return "worker saturated";
+        }
+        return "worker rejected task with status " + statusCode;
     }
 }

@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -15,6 +16,7 @@ type Config struct {
 	WorkDir          string
 	AllowUnsandboxed bool
 	IsolateExtraArgs string
+	MaxConcurrency   int
 }
 
 func Load() Config {
@@ -28,6 +30,7 @@ func Load() Config {
 		WorkDir:          getenv("JUDGE_WORK_DIR", ""),
 		AllowUnsandboxed: getenv("JUDGE_ALLOW_UNSANDBOXED", "true") == "true",
 		IsolateExtraArgs: getenv("ISOLATE_EXTRA_ARGS", ""),
+		MaxConcurrency:   getenvInt("JUDGE_MAX_CONCURRENCY", 1),
 	}
 }
 
@@ -36,4 +39,16 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func getenvInt(k string, def int) int {
+	raw := os.Getenv(k)
+	if raw == "" {
+		return def
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 {
+		return def
+	}
+	return value
 }

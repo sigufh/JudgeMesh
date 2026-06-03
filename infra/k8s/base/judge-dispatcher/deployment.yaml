@@ -31,7 +31,9 @@ spec:
             - { name: ETCD_ENABLED, value: "true" }
             - { name: ETCD_FAIL_OPEN, value: "false" }
             - { name: ETCD_ENDPOINTS, value: http://etcd.judgemesh-infra.svc:2379 }
-            - { name: JUDGE_WORKER_URLS, value: http://judge-worker.judgemesh.svc:8090 }
+            - { name: JUDGE_WORKER_URLS, value: http://judge-worker-headless.judgemesh.svc:8090 }
+            - { name: JUDGE_WORKER_DISCOVERY_ENABLED, value: "true" }
+            - { name: JUDGE_WORKER_DISCOVERY_REFRESH_SECONDS, value: "10" }
           envFrom:
             - secretRef: { name: judgemesh-secrets }
           resources:

@@ -30,7 +30,7 @@ class WorkerRegistryTest {
     void acquireDistributesAcrossHealthyWorkersWhenInflightTies() throws IOException {
         String workerA = startWorker(200);
         String workerB = startWorker(200);
-        WorkerRegistry registry = new WorkerRegistry(workerA + "," + workerB, 5, new RestTemplate());
+        WorkerRegistry registry = new WorkerRegistry(workerA + "," + workerB, 5, false, 15, new RestTemplate());
 
         Map<URI, Integer> selected = new HashMap<>();
         for (int i = 0; i < 6; i++) {
@@ -47,7 +47,7 @@ class WorkerRegistryTest {
     void acquireSkipsUnhealthyWorkers() throws IOException {
         String unhealthy = startWorker(500);
         String healthy = startWorker(200);
-        WorkerRegistry registry = new WorkerRegistry(unhealthy + "," + healthy, 5, new RestTemplate());
+        WorkerRegistry registry = new WorkerRegistry(unhealthy + "," + healthy, 5, false, 15, new RestTemplate());
 
         URI worker = registry.acquire();
 
@@ -58,7 +58,7 @@ class WorkerRegistryTest {
     void acquireCanSkipAlreadyAttemptedWorkers() throws IOException {
         String workerA = startWorker(200);
         String workerB = startWorker(200);
-        WorkerRegistry registry = new WorkerRegistry(workerA + "," + workerB, 5, new RestTemplate());
+        WorkerRegistry registry = new WorkerRegistry(workerA + "," + workerB, 5, false, 15, new RestTemplate());
 
         URI first = registry.acquire();
         registry.release(first);

@@ -2,6 +2,7 @@ package com.judgemesh.dispatcher.service;
 
 import io.etcd.jetcd.ByteSequence;
 import io.etcd.jetcd.Client;
+import io.etcd.jetcd.options.PutOption;
 import io.etcd.jetcd.support.CloseableClient;
 import io.grpc.stub.StreamObserver;
 import org.springframework.beans.factory.DisposableBean;
@@ -31,6 +32,7 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
     private final boolean failOpen;
     private final String[] endpoints;
     private final String leaderKey;
+    private final String leaderHolderKey;
     private final long leaseTtlSeconds;
     private final ScheduledExecutorService executor;
     private final List<LeadershipListener> listeners = new CopyOnWriteArrayList<>();
@@ -58,6 +60,7 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
                 .filter(s -> !s.isBlank())
                 .toArray(String[]::new);
         this.leaderKey = leaderKey;
+        this.leaderHolderKey = leaderKey + "/holder";
         this.leaseTtlSeconds = Math.max(5, leaseTtlSeconds);
         this.executor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread thread = new Thread(r, "dispatcher-leader-election");
@@ -91,7 +94,9 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
 
     public Map<String, Object> status() {
         Map<String, Object> status = new LinkedHashMap<>();
-        status.put("leader", leader.get() ? podName : null);
+        String currentLeader = currentLeader();
+        status.put("leader", currentLeader);
+        status.put("currentLeader", currentLeader);
         status.put("self", podName);
         status.put("isLeader", leader.get());
         status.put("mode", mode);
@@ -145,6 +150,13 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
                             return;
                         }
                         lockKey = response.getKey();
+                        try {
+                            publishLeaderHolder(etcd);
+                        } catch (Exception ex) {
+                            unlock();
+                            handleEtcdUnavailable();
+                            return;
+                        }
                         leader.set(true);
                         mode = "etcd-lease";
                         lastChangedAt = Instant.now();
@@ -180,6 +192,36 @@ public class LeaderElectionService implements SmartInitializingSingleton, Dispos
         resetLease();
         lastChangedAt = Instant.now();
         notifyListeners();
+    }
+
+    private String currentLeader() {
+        if (!etcdEnabled || leader.get()) {
+            return podName;
+        }
+        Client etcd = client;
+        if (etcd == null) {
+            return null;
+        }
+        try {
+            var response = etcd.getKVClient().get(bs(leaderHolderKey)).get(2, TimeUnit.SECONDS);
+            if (!response.getKvs().isEmpty()) {
+                return response.getKvs().get(0).getValue().toString(StandardCharsets.UTF_8);
+            }
+        } catch (Exception ignored) {
+            // Status should stay best-effort even when etcd is degraded.
+        }
+        return null;
+    }
+
+    private void publishLeaderHolder(Client etcd) throws Exception {
+        if (leaseId == 0) {
+            return;
+        }
+        etcd.getKVClient().put(
+                bs(leaderHolderKey),
+                bs(podName),
+                PutOption.builder().withLeaseId(leaseId).build())
+                .get(2, TimeUnit.SECONDS);
     }
 
     private void unlock() {

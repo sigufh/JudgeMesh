@@ -52,6 +52,10 @@ public class JudgeResult {
     @JsonProperty("worker_version")
     private String workerVersion;
 
+    /** 单次派发尝试 ID,用于回调幂等校验 */
+    @JsonProperty("attempt_id")
+    private String attemptId;
+
     @Data
     @Builder
     @NoArgsConstructor
