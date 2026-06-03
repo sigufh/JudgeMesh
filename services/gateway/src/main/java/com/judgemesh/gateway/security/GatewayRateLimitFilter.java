@@ -5,12 +5,14 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -25,11 +27,15 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
     private final Cache<String, WindowCounter> counters;
     private final int submitLimitPerMinute;
     private final Counter blockedCounter;
+    private final Counter fallbackCounter;
+    private final ObjectProvider<ReactiveStringRedisTemplate> redisTemplateProvider;
 
     public GatewayRateLimitFilter(
             MeterRegistry registry,
+            ObjectProvider<ReactiveStringRedisTemplate> redisTemplateProvider,
             @Value("${judgemesh.gateway.submit-limit-per-minute:30}") int submitLimitPerMinute) {
         this.submitLimitPerMinute = Math.max(1, submitLimitPerMinute);
+        this.redisTemplateProvider = redisTemplateProvider;
         this.counters = Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofMinutes(2))
                 .maximumSize(10_000)
@@ -37,6 +43,10 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
         this.blockedCounter = Counter.builder("oj_gateway_rate_limit_total")
                 .tag("route", "submit")
                 .tag("result", "blocked")
+                .register(registry);
+        this.fallbackCounter = Counter.builder("oj_gateway_rate_limit_total")
+                .tag("route", "submit")
+                .tag("result", "redis_fallback")
                 .register(registry);
     }
 
@@ -49,18 +59,14 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
         }
 
         String key = rateLimitKey(request);
-        WindowCounter counter = counters.asMap().compute(key, (ignored, existing) -> {
-            if (existing == null || existing.expired()) {
-                return new WindowCounter();
-            }
-            existing.increment();
-            return existing;
-        });
-        if (counter.count() > submitLimitPerMinute) {
-            blockedCounter.increment();
-            return tooManyRequests(exchange);
-        }
-        return chain.filter(exchange);
+        return limitAllowed(key)
+                .flatMap(allowed -> {
+                    if (!allowed) {
+                        blockedCounter.increment();
+                        return tooManyRequests(exchange);
+                    }
+                    return chain.filter(exchange);
+                });
     }
 
     @Override
@@ -82,6 +88,44 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
             return "ip:" + forwardedFor.split(",")[0].trim();
         }
         return "remote:" + request.getRemoteAddress();
+    }
+
+    private Mono<Boolean> limitAllowed(String key) {
+        ReactiveStringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
+        if (redisTemplate == null) {
+            fallbackCounter.increment();
+            return Mono.just(localAllowed(key));
+        }
+
+        String redisKey = redisKey(key);
+        return redisTemplate.opsForValue()
+                .increment(redisKey)
+                .flatMap(count -> {
+                    Mono<Long> ttl = count == 1
+                            ? redisTemplate.expire(redisKey, Duration.ofMinutes(2)).thenReturn(count)
+                            : Mono.just(count);
+                    return ttl.map(current -> current <= submitLimitPerMinute);
+                })
+                .onErrorResume(ex -> {
+                    fallbackCounter.increment();
+                    return Mono.just(localAllowed(key));
+                });
+    }
+
+    private boolean localAllowed(String key) {
+        WindowCounter counter = counters.asMap().compute(key, (ignored, existing) -> {
+            if (existing == null || existing.expired()) {
+                return new WindowCounter();
+            }
+            existing.increment();
+            return existing;
+        });
+        return counter.count() <= submitLimitPerMinute;
+    }
+
+    private static String redisKey(String key) {
+        long bucket = Instant.now().getEpochSecond() / 60;
+        return "judgemesh:gateway:submit-limit:" + bucket + ":" + key;
     }
 
     private static Mono<Void> tooManyRequests(ServerWebExchange exchange) {
