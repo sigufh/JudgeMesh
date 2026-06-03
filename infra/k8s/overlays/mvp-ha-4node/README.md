@@ -24,9 +24,9 @@ Behavior:
 
 - app services prefer `app` nodes and run with `2` replicas
 - `judge-dispatcher` runs with `3` replicas
-- `judge-worker` runs with `2` replicas and is restricted to `judge` nodes
+- `judge-worker` starts with `3` replicas, scales by queue length through KEDA, and is restricted to `judge` nodes
 - ingress does not require a fixed hostname
-- nonessential components are excluded: `cert-manager`, `grafana-dashboards`, `keda`
+- nonessential components are excluded: `cert-manager`, `grafana-dashboards`
 
 Deploy:
 
@@ -39,3 +39,4 @@ Known scope limits:
 
 - `mysql`, `minio`, `redis`, `rabbitmq`, and `nacos` are still single-instance in this MVP.
 - This overlay targets business-path HA and distributed judging, not full HA for every stateful dependency.
+- Install the KEDA operator before applying this overlay, for example with `scripts/install-keda.sh`.

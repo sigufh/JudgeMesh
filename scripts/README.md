@@ -10,6 +10,7 @@
 | `gen-jwt.sh` | login and print a test JWT | @Phoen1xCode | READY |
 | `port-forward.sh` | forward Gateway / Frontend / Nacos / Grafana / SkyWalking | @sigufh | READY |
 | `smoke-test.sh` | health, login, problem list, and submit enqueue smoke check | all | READY |
+| `install-keda.sh` | install the KEDA operator required by worker queue autoscaling | infra | READY |
 
 ## Common Commands
 
@@ -22,7 +23,14 @@ node scripts/seed-demo-data.mjs
 scripts/port-forward.sh
 scripts/k8s-bootstrap.sh            # dry-run
 scripts/k8s-bootstrap.sh --confirm  # actual kubeadm init
+scripts/install-keda.sh
 ```
+
+## Final Defense
+
+- Recommended overlay: `infra/k8s/overlays/final-defense`
+- Deployment guide: [`docs/dev/03-Google-Cloud-四节点-最终答辩部署指南.md`](/D:/JudgeMesh/docs/dev/03-Google-Cloud-四节点-最终答辩部署指南.md:1)
+- Worker strategy: keep `JUDGE_MAX_CONCURRENCY=1`, scale out with KEDA, and allow multiple worker Pods on the same judge node when queue pressure rises
 
 ## Submit Load Test Variables
 

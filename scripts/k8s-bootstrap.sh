@@ -54,6 +54,7 @@ if [[ "$INSTALL_ADDONS" == "true" ]]; then
     helm repo add grafana https://grafana.github.io/helm-charts
     helm repo add apache https://apache.jfrog.io/artifactory/skywalking-helm
     helm repo add chaos-mesh https://charts.chaos-mesh.org
+    helm repo add kedacore https://kedacore.github.io/charts
     helm repo update
   else
     echo "helm not found; install helm before applying infra/helm/values/*.yaml" >&2
@@ -67,8 +68,9 @@ cluster bootstrap complete
 - next steps:
   1. label judge nodes: kubectl label node <node> role=judge
   2. taint judge nodes: kubectl taint nodes <node> role=judge:NoSchedule
-  3. install observability charts with infra/helm/values/*.yaml
-  4. apply overlays: kubectl apply -k infra/k8s/overlays/dev
+  3. install KEDA: scripts/install-keda.sh
+  4. install observability charts with infra/helm/values/*.yaml
+  5. apply overlays: kubectl apply -k infra/k8s/overlays/dev
 EOF
 
 kubectl get nodes -o wide

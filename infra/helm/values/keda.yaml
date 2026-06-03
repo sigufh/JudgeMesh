@@ -1,0 +1,2 @@
+# Minimal values for installing the KEDA operator used by JudgeMesh worker autoscaling.
+watchNamespace: ""

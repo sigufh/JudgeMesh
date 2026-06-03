@@ -10,6 +10,7 @@ Behavior:
 
 - app and infra workloads are pinned to the single app node
 - `judge-worker` runs with `3` replicas and uses required node affinity plus pod anti-affinity
+- `judge-worker` scales from `3` replicas based on queue length after the KEDA operator is installed
 - ingress does not require a fixed hostname
 
 Prepare nodes:
@@ -28,6 +29,7 @@ kubectl taint node JUDGE_NODE_3 role=judge:NoSchedule
 Deploy:
 
 ```bash
+scripts/install-keda.sh
 kubectl apply -k infra/k8s/overlays/gke-4node-demo
 kubectl get pods -n judgemesh -o wide
 ```
