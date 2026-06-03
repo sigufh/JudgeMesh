@@ -16,35 +16,23 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/problems")
+@RequestMapping("/api/problem")
 @RequiredArgsConstructor
-public class ProblemController {
+public class ProblemCompatController {
 
     private final ProblemService problemService;
 
-    @GetMapping
-    public ApiResponse<Page<ProblemDTO>> listProblems(
+    @GetMapping("/list")
+    public ApiResponse<List<ProblemDTO>> listProblems(
         @RequestParam(value = "current", defaultValue = "1") int current,
         @RequestParam(value = "size", defaultValue = "10") int size,
+        @RequestParam(value = "q", required = false) String q,
         @RequestParam(value = "keyword", required = false) String keyword,
-        @RequestParam(value = "tag", required = false) String tag,
-        @RequestParam(value = "difficulty", required = false) String difficulty) {
-
-        return ApiResponse.ok(problemService.listProblems(current, size, keyword, tag, difficulty));
-    }
-
-    // Backward-compatible endpoint used by the frontend and load-test scripts.
-    @GetMapping(path = "/list")
-    public ApiResponse<List<ProblemDTO>> listProblemsCompat(
-        @RequestParam(value = "current", defaultValue = "1") int current,
-        @RequestParam(value = "size", defaultValue = "10") int size,
-        @RequestParam(value = "q", required = false) String keyword,
-        @RequestParam(value = "keyword", required = false) String keywordCompat,
         @RequestParam(value = "tag", required = false) String tag,
         @RequestParam(value = "difficulty", required = false) String difficulty,
         @RequestParam(value = "includeDraft", required = false) Boolean includeDraft) {
 
-        String effectiveKeyword = keyword != null ? keyword : keywordCompat;
+        String effectiveKeyword = q != null ? q : keyword;
         Page<ProblemDTO> page = problemService.listProblems(current, size, effectiveKeyword, tag, difficulty);
         return ApiResponse.ok(page.getRecords());
     }
@@ -63,24 +51,17 @@ public class ProblemController {
         @Validated @RequestBody ProblemCreateReq req,
         @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long setterId) {
 
-        Long id = problemService.createProblem(req, setterId);
-        return ApiResponse.ok(id);
+        return ApiResponse.ok(problemService.createProblem(req, setterId));
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<Void> updateProblem(
-        @PathVariable("id") Long id,
-        @RequestBody ProblemUpdateReq req) {
-
+    public ApiResponse<Void> updateProblem(@PathVariable("id") Long id, @RequestBody ProblemUpdateReq req) {
         problemService.updateProblem(id, req);
         return ApiResponse.ok(null);
     }
 
-    /**
-     * 上传测试用例接口 (由前端/出题人调用)
-     */
-    @PostMapping("/{id}/testcases")
-    public ApiResponse<Void> uploadTestcase(
+    @PostMapping("/{id}/testcase")
+    public ApiResponse<Void> uploadTestcaseCompat(
         @PathVariable("id") Long id,
         @RequestParam("caseIndex") Integer caseIndex,
         @RequestParam("inputFile") MultipartFile inputFile,
@@ -94,11 +75,8 @@ public class ProblemController {
         }
     }
 
-    /**
-     * 获取测试用例清单接口 (仅供 Go Worker 调用)
-     */
-    @GetMapping("/{id}/testcases/manifest")
-    public ApiResponse<List<TestcaseManifestVO>> getManifest(@PathVariable("id") Long id) {
+    @GetMapping("/{id}/testcase/manifest")
+    public ApiResponse<List<TestcaseManifestVO>> getManifestCompat(@PathVariable("id") Long id) {
         return ApiResponse.ok(problemService.getTestcaseManifest(id));
     }
 }
